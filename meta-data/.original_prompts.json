@@ -1,0 +1,15 @@
+{
+  "_org": "hmd",
+  "_repo_type": "ms-",
+  "short_name": "deployment-core",
+  "project_name": "hmd-ms-deployment-core",
+  "repo_name": "hmd-ms-deployment-core",
+  "description": "Open Core components of NeuronSphere Deployment service",
+  "_author": "Alexander Burgoon",
+  "_author_email": "alex.burgoon@hmdlabs.io",
+  "__module_name": "hmd_ms_deployment_core",
+  "_template": "/var/folders/zh/bvmlv2g97kg5sfpx1fp_nhx00000gn/T/tmpn94ctq42/hmd_cli_repo",
+  "_output_dir": "/Users/aburg/hmdtr1/projects",
+  "_repo_dir": "/var/folders/zh/bvmlv2g97kg5sfpx1fp_nhx00000gn/T/tmpn94ctq42/hmd_cli_repo",
+  "_checkout": null
+}
