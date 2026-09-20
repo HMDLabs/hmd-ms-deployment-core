@@ -1,0 +1,9 @@
+{
+  "dependencies": {},
+  "service_config": {
+    "service_loader": "deployment",
+    "loader_config": {
+      "deployment": ["hmd-lang-deployment", "hmd-lang-timestamp-record"]
+    }
+  }
+}

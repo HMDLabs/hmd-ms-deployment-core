@@ -10,10 +10,10 @@ with open(version_file, "r") as vfl:
 setup(
     name="hmd-ms-deployment-core",
     version=version,
-    description="Open Core components of NeuronSphere Deployment service",
+    description="Registry and resolver core of the NeuronSphere deployment service",
     author="Alexander Burgoon",
     author_email="alex.burgoon@hmdlabs.io",
-    license="unlicensed",
+    license="BUSL-1.1",
     packages=find_packages(),
     include_package_data=True,
     install_requires=[],

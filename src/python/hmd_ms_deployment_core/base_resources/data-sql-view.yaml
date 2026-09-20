@@ -1,0 +1,19 @@
+# Base ResourceDefinition (NERD0014): a view is a table to every consumer that
+# can read one, so it `parent`s sql-table rather than dataset -- the same
+# substitutability reasoning behind ingress-controller isa operator isa
+# deployment.
+resource_namespace: data.neuronsphere.io
+resource_definition_name: sql-view
+version: 0.1.0
+description: >-
+  A dataset exposed as a SQL view, readable wherever a table is.
+parent:
+  resource_namespace: data.neuronsphere.io
+  resource_definition_name: sql-table
+  version: 0.1.0
+output_schema:
+  type: object
+  properties:
+    definition:
+      type: string
+      description: The view's SQL, when the producer chooses to expose it.

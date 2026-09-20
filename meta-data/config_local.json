@@ -1,8 +1,11 @@
 {
   "loader_config": {
-    "base": ["hmd_ms_deployment_core"]
+    "deployment": [
+      "hmd-lang-deployment",
+      "hmd-lang-timestamp-record"
+    ]
   },
-  "service_loader": "base",
+  "service_loader": "deployment",
   "operations_modules": [
     "hmd_ms_base.crud_operations",
     "hmd_ms_deployment_core.operations"
@@ -12,11 +15,17 @@
       "engine_type": "postgres",
       "engine_config": {
         "host": "db",
-        "user": "hmd_ms_deployment_core",
-        "password": "hmd_ms_deployment_core",
-        "db_name": "hmd_ms_deployment_core"
+        "user": "hmd_ms_deployment",
+        "password": "hmd_ms_deployment",
+        "db_name": "hmd_ms_deployment"
       }
     }
   },
-  "hmd_entity_config": { "__default__": { "persistence": ["postgres"] } }
+  "hmd_entity_config": {
+    "__default__": {
+      "persistence": [
+        "postgres"
+      ]
+    }
+  }
 }

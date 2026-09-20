@@ -1,12 +1,15 @@
 .. hmd-ms-deployment-core documentation master file
 
-Welcome to hmd-ms-deployment-core's documentation!
-===============================================================
+hmd-ms-deployment-core
+======================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   readme
+   class
+   resources
 
 Indices and tables
 ==================

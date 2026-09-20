@@ -1,0 +1,22 @@
+# Base ResourceDefinition (NERD0014): the abstract root for data a product
+# produces and another product consumes. Concrete shapes (sql-table, a
+# customer's own dataset type) `parent` this type. The root field is
+# `location`, not `schema`, because a dataset is not always a SQL relation: a
+# Parquet prefix, a table path, a topic and a warehouse schema are all "where
+# consumers find it". Nothing here is required; a required field on a root is
+# inherited by every subtype forever.
+resource_namespace: data.neuronsphere.io
+resource_definition_name: dataset
+version: 0.1.0
+description: >-
+  A named, addressable collection of records produced by a data product and
+  read by others. Concrete shapes such as sql-table inherit from this type.
+output_schema:
+  type: object
+  properties:
+    location:
+      type: string
+      description: Where consumers find the dataset -- a schema, a path or a URI.
+    schedule:
+      type: string
+      description: How often it is refreshed, as a cron expression or a descriptor such as hourly.

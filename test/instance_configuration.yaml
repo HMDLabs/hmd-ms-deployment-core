@@ -1,0 +1,11 @@
+dependencies: {}
+deployment_id: aaa
+instance_name: hmd_ms_deployment
+repo_name: hmd-ms-deployment-core
+service_config:
+  loader_config:
+    deployment:
+    - hmd-lang-deployment
+    - hmd-lang-timestamp-record
+  service_loader: deployment
+version: '0.1'

@@ -1,0 +1,24 @@
+# Base ResourceDefinition (NERD0014): a dataset addressed by the three-part
+# name every SQL engine understands.
+resource_namespace: data.neuronsphere.io
+resource_definition_name: sql-table
+version: 0.1.0
+description: >-
+  A dataset stored as a table in a SQL database, addressed by database, schema
+  and table name.
+parent:
+  resource_namespace: data.neuronsphere.io
+  resource_definition_name: dataset
+  version: 0.1.0
+output_schema:
+  type: object
+  properties:
+    database:
+      type: string
+      description: The database the table lives in.
+    schema:
+      type: string
+      description: The schema within the database.
+    table:
+      type: string
+      description: The table name.

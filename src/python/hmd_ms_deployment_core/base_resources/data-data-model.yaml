@@ -1,0 +1,23 @@
+# Base ResourceDefinition (NERD0014): a set of transformation definitions --
+# a dbt project, a SQLMesh project, a directory of SQL -- that other projects
+# read as sources. Deliberately not a dataset: a consumer that depends on a
+# data-model wants the definitions to reference; one that depends on a dataset
+# wants the materialised rows. Conflating them would let a model project
+# satisfy a request for a table.
+resource_namespace: data.neuronsphere.io
+resource_definition_name: data-model
+version: 0.1.0
+description: >-
+  A set of data model definitions that, when run, produce datasets, and that
+  other projects reference as sources.
+output_schema:
+  type: object
+  properties:
+    schema:
+      type: string
+      description: The namespace the models materialise into.
+    models:
+      type: array
+      description: The model names other projects may read as sources.
+      items:
+        type: string

@@ -1,7 +1,15 @@
 {
   "name": "hmd-ms-deployment-core",
-  "description": "Open Core components of NeuronSphere Deployment service",
+  "description": "Registry and resolver core of the NeuronSphere deployment service: RepoClass/RepoClassVersion registration, the ResourceDefinition catalogue, resource-based dependency resolution, discovery search and RepoInstance records. The orchestrator (hmd-ms-deployment) layers on top of this image.",
   "build": {
+    "pre_build_artifacts": [
+      [
+        "hmd-lang-deployment@0.1.87:schema",
+        [
+          "src/python/schemas/local"
+        ]
+      ]
+    ],
     "commands": [
       [
         "python"
@@ -16,7 +24,8 @@
   },
   "docker": {
     "build": {
-      "install_local": true
+      "install_local": true,
+      "context_dir": "./"
     }
   },
   "deploy": {
@@ -50,26 +59,59 @@
       },
       "db-credentials": {
         "repo_class_name": "hmd-database-account",
-        "required": "false",
-        "version_spec": "~= 0.1.3"
+        "required": "true",
+        "version_spec": "~= 0.1"
       },
       "authorizer": {
         "required": "false",
         "repo_class_name": "hmd-inf-opa-authorizer",
         "version_spec": "~= 0.1.7"
+      },
+      "otel-collector": {
+        "repo_class_name": "hmd-inf-otel-collector",
+        "required": "true",
+        "version_spec": "~= 0.1.51"
+      },
+      "pgbouncer": {
+        "repo_class_name": "hmd-inf-pgbouncer",
+        "required": "false",
+        "version_spec": "~= 0.1",
+        "resource": {
+          "resource_namespace": "pgbouncer.neuronsphere.io",
+          "resource_definition_name": "pgbouncer-proxy",
+          "version": "0.1.0",
+          "version_spec": "~= 0.1"
+        }
       }
     },
     "default_configuration": {
+      "hmd_log_level": {
+        "HMD": "INFO"
+      },
+      "use_api_key": false,
+      "create_okta_identity": true,
+      "otel_flush_timeout_ms": 3000,
+      "otel_http_timeout_s": 1,
       "service_config": {
         "loader_config": {
-          "base": []
+          "deployment": [
+            "hmd-lang-deployment",
+            "hmd-lang-timestamp-record"
+          ]
         },
-        "service_loader": "base",
+        "service_loader": "deployment",
+        "operations_modules": [
+          "hmd_ms_base.crud_operations",
+          "hmd_ms_deployment_core.operations"
+        ],
         "hmd_db_engines": {
           "postgres": {
             "engine_type": "postgres",
             "engine_config": {
-              "db_secret_name": "dependency:db-credentials"
+              "db_secret_name": "dependency:db-credentials",
+              "db_name": "deployment",
+              "proxy_host": "dependency:pgbouncer",
+              "proxy_port": 6432
             }
           }
         },
@@ -79,11 +121,7 @@
               "postgres"
             ]
           }
-        },
-        "operations_modules": [
-          "hmd_ms_base.crud_operations",
-          "hmd_ms_deployment_core.operations"
-        ]
+        }
       }
     }
   },
@@ -92,6 +130,117 @@
     "facets": [
       "default_repo",
       "microservice_repo"
+    ]
+  },
+  "discovery": {
+    "summary": "Registry-and-resolver core of the NeuronSphere deployment service (NERD0015). Owns RepoClass/RepoClassVersion registration, the namespaced, versioned ResourceDefinition catalogue (NERD0004) with its bundled base types, Resources produced by deployments, discovery search (NERD0013) and RepoInstance records (register/status/history/config/BOM). The orchestrator, hmd-ms-deployment, builds its image FROM this one and loads this module's operations alongside its own; every /apiop/* route is unchanged. This is the image nsctl runs as the local control plane.",
+    "entry_points": [
+      {
+        "path": "src/python/hmd_ms_deployment_core/operations.py",
+        "description": "Registered core operations -- the /apiop/* REST surface of the core image (30 endpoints)."
+      },
+      {
+        "path": "src/python/hmd_ms_deployment_core/resource_information.py",
+        "description": "ResourceDefinition catalogue and resource-based dependency resolution (NERD0004)."
+      },
+      {
+        "path": "src/python/hmd_ms_deployment_core/environment_information.py",
+        "description": "Environment graph loading and RepoInstance / RepoInstanceDeployment record management."
+      },
+      {
+        "path": "src/python/hmd_ms_deployment_core/bom.py",
+        "description": "Dependency-ordered environment bill of materials without the DAG engine."
+      },
+      {
+        "path": "docs/readme.rst",
+        "description": "What the core owns and does not own."
+      }
+    ],
+    "capabilities": [
+      {
+        "name": "POST /apiop/add_repo_class_version",
+        "kind": "endpoint",
+        "description": "Registers a RepoClassVersion with its declared dependencies, default configuration and discovery metadata.",
+        "location": "src/python/hmd_ms_deployment_core/operations.py"
+      },
+      {
+        "name": "POST /apiop/register_deployed_instance",
+        "kind": "endpoint",
+        "description": "Records a RepoInstance and its deployment with the full edge set; status DEPLOYED (default) or DEPLOY_NEXT, with optional role->instance dependencies.",
+        "location": "src/python/hmd_ms_deployment_core/operations.py"
+      },
+      {
+        "name": "GET /apiop/get_deployment_config/<args_type>/<args_name>",
+        "kind": "endpoint",
+        "description": "Resolved deploy configuration of an instance including its dependencies' produced resources (NERD0006).",
+        "location": "src/python/hmd_ms_deployment_core/operations.py"
+      },
+      {
+        "name": "GET /apiop/get_deployment_bom/<args_type>",
+        "kind": "endpoint",
+        "description": "Deployed instances of an environment in dependency order.",
+        "location": "src/python/hmd_ms_deployment_core/operations.py"
+      },
+      {
+        "name": "GET /apiop/get_repo_class_instances/<args_repo_class_name>/<args_type>",
+        "kind": "endpoint",
+        "description": "Pending and current deployments of a RepoClass in an environment, with deployment identifiers (alias: find_repo_class_instances).",
+        "location": "src/python/hmd_ms_deployment_core/operations.py"
+      },
+      {
+        "name": "POST /apiop/seed_base_resource_definitions",
+        "kind": "endpoint",
+        "description": "Idempotently seeds the bundled base ResourceDefinition catalogue (also runs at startup).",
+        "location": "src/python/hmd_ms_deployment_core/operations.py"
+      },
+      {
+        "name": "GET /apiop/suggest_resource_dependencies/<args_type>",
+        "kind": "endpoint",
+        "description": "RepoInstances that could satisfy a resource-typed role in an environment.",
+        "location": "src/python/hmd_ms_deployment_core/operations.py"
+      },
+      {
+        "name": "GET /apiop/search_discovery",
+        "kind": "endpoint",
+        "description": "Searches the discovery catalogue of registered RepoClassVersions (NERD0013).",
+        "location": "src/python/hmd_ms_deployment_core/operations.py"
+      },
+      {
+        "name": "InstanceConfigResolver",
+        "kind": "class",
+        "description": "Builds an instance's deploy configuration from its class defaults, instance configuration and dependencies.",
+        "location": "src/python/hmd_ms_deployment_core/instance_config.py"
+      },
+      {
+        "name": "build_environment_bom",
+        "kind": "function",
+        "description": "Kahn-ordered BOM over RepoInstanceReqRepoInstance edges; same node shape as the former DeployBomCreator.",
+        "location": "src/python/hmd_ms_deployment_core/bom.py"
+      },
+      {
+        "name": "ResourceInformation",
+        "kind": "class",
+        "description": "Resource/ResourceDefinition queries, inheritance- and tag-aware satisfaction, resource submission.",
+        "location": "src/python/hmd_ms_deployment_core/resource_information.py"
+      }
+    ],
+    "related_docs": [
+      {
+        "title": "Overview",
+        "path": "docs/readme.rst"
+      },
+      {
+        "title": "Resource Definitions and Resources",
+        "path": "docs/resources.rst"
+      },
+      {
+        "title": "RepoClasses",
+        "path": "docs/class.rst"
+      },
+      {
+        "title": "NERD0015: Core and Premium Split (in hmd-ms-deployment)",
+        "path": "../hmd-ms-deployment/docs/proposals/NERD0015_CoreAndPremiumSplit.rst"
+      }
     ]
   }
 }
