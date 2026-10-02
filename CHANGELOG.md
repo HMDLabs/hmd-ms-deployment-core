@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02
+
+- feat: evaluate BACON toolset deploy requirements (`DeployRequirementEvaluator`) in `validate_changeset`, against the tool set image each environment's deploys run on; optional `environments` and `acknowledge_requirements` body keys
+- feat: store a manifest's `toolset` block and `deploy.commands` on the RepoClassVersion
+- fix: record a deployment's `deployment_image` from `HMD_APP_IMAGE_MAP` for its environment, not always `HMD_APP_IMAGE`
+
 ## 2026-09-20
 
 - feat: registry-and-resolver core split out of hmd-ms-deployment (NERD0015) — RepoClass/RCV registration, ResourceDefinition catalogue, Resources, discovery search, RepoInstance records

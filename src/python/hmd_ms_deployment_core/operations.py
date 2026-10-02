@@ -25,6 +25,7 @@ from .bom import (
     find_class_instances,
 )
 from .class_information import ClassInformation
+from .deploy_requirements import DeployRequirementEvaluator
 from .discovery_index import get_or_build_index, search_index
 from .environment_information import EnvironmentInformation
 from .instance_config import InstanceConfigResolver, with_details
@@ -948,6 +949,14 @@ def setup(service):
         required role on the class version is supplied, that every named
         dependency resolves to another change in the set, and that the implied
         instance dependency graph has no cycles. It performs no DB writes.
+
+        It also evaluates the deploy requirements of the tool set that will run
+        the deploys (BACON ``toolset.deploy_requirements``). Optional body keys:
+        ``environments``, the environment types the change set will be applied
+        to, so each is checked against the image mapped to it (otherwise the
+        default image, with instances found by name); and
+        ``acknowledge_requirements``, requirement names the operator overrides,
+        which are then reported as warnings.
         """
         deploy_client = _get_deploy_client(evt, ctx)
         payload = evt["args"]["payload"]
@@ -1067,6 +1076,44 @@ def setup(service):
                             f"Dependency '{role}' -> '{target_name}' is neither in the change set "
                             f"nor an existing deployed RepoInstance.",
                         )
+
+        # BACON toolset deploy requirements: what the tool set that will run
+        # these deploys needs of their dependencies.
+        env_infos: List[Optional[EnvironmentInformation]] = []
+        environment_types = payload.get("environments") or []
+        if environment_types:
+            known = {
+                env.type: env
+                for env in deploy_client.search_environment_hmd_lang_deployment({})
+            }
+            for environment_type in environment_types:
+                if environment_type not in known:
+                    _err(
+                        "unknown_environment",
+                        "",
+                        f"Environment '{environment_type}' does not exist.",
+                    )
+                    continue
+                env_infos.append(
+                    EnvironmentInformation(known[environment_type], deploy_client)
+                )
+        else:
+            env_infos.append(None)
+
+        evaluator = DeployRequirementEvaluator(deploy_client)
+        seen_findings: set = set()
+        for env_info in env_infos:
+            findings = evaluator.evaluate(
+                list(instances_by_name.values()),
+                env_info,
+                acknowledged=payload.get("acknowledge_requirements") or (),
+            )
+            for kind, target in (("errors", errors), ("warnings", warnings)):
+                for finding in findings[kind]:
+                    key = (finding["type"], finding["instance"], finding["message"])
+                    if key not in seen_findings:
+                        seen_findings.add(key)
+                        target.append(finding)
 
         # Cycle detection over instances supplied in this changeset.
         WHITE, GRAY, BLACK = 0, 1, 2

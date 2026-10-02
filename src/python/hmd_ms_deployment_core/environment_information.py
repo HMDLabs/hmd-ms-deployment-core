@@ -34,6 +34,7 @@ from hmd_lang_deployment.repo_instance_req_repo_instance import (
     RepoInstanceReqRepoInstance,
 )
 from hmd_meta_types import Noun, Relationship
+from hmd_ms_deployment_core.deploy_image import resolve_deploy_image
 from hmd_ms_deployment_core import (
     DEPLOYED,
     DEPLOY_NEXT,
@@ -613,9 +614,11 @@ class EnvironmentInformation:
             "config_artifact_spec": config_spec,
         }
 
-        # Store the Docker image used for deployment
-        if "HMD_APP_IMAGE" in os.environ:
-            deployment_data["deployment_image"] = os.environ["HMD_APP_IMAGE"]
+        # Store the Docker image used for deployment: the one mapped to this
+        # environment, which is the one the workflow will run.
+        deployment_image = resolve_deploy_image(self.environment.type)
+        if deployment_image:
+            deployment_data["deployment_image"] = deployment_image
 
         if image_only:
             deployment_data["image_only"] = "true"

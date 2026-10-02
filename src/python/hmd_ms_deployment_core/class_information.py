@@ -202,6 +202,8 @@ class ClassInformation:
         version_notes: Optional[RepoClassVersionNotes] = None,
         external_artifacts: Optional[List[ExternalArtifact]] = [],
         discovery: Optional[Dict] = None,
+        toolset: Optional[Dict] = None,
+        deploy_commands: Optional[List] = None,
     ) -> RepoClassVersion:
         """Add a new RepoClassVersion to a RepoClass.
 
@@ -236,6 +238,12 @@ class ClassInformation:
         :param discovery: BACON discovery metadata (summary, entry_points, capabilities,
             related_docs) copied from the repo class's manifest.json.
         :type discovery: Optional[Dict]
+        :param toolset: BACON ``toolset`` section, carried only by a tool set
+            distribution (its ``deploy_requirements``).
+        :type toolset: Optional[Dict]
+        :param deploy_commands: BACON ``deploy.commands``, so a toolset deploy
+            requirement's ``applies_to.tool`` can be matched.
+        :type deploy_commands: Optional[List]
         :returns: The newly created RepoClassVersion object
         :rtype: RepoClassVersion
         """
@@ -256,6 +264,8 @@ class ClassInformation:
             version=version,
             default_configuration=default_configuration,
             discovery=discovery,
+            toolset=toolset,
+            deploy_commands=deploy_commands,
         )
         self.client.upsert(new_version)
 
@@ -440,6 +450,8 @@ class ClassInformation:
         version_notes: Optional[RepoClassVersionNotes] = None,
         external_artifacts: Optional[List[ExternalArtifact]] = [],
         discovery: Optional[Dict] = None,
+        toolset: Optional[Dict] = None,
+        deploy_commands: Optional[List] = None,
     ) -> RepoClassVersion:
         """Add a new RepoClassVersion to a RepoClass.
 
@@ -472,6 +484,12 @@ class ClassInformation:
         :param discovery: BACON discovery metadata (summary, entry_points, capabilities,
             related_docs) copied from the repo class's manifest.json.
         :type discovery: Optional[Dict]
+        :param toolset: BACON ``toolset`` section, carried only by a tool set
+            distribution (its ``deploy_requirements``).
+        :type toolset: Optional[Dict]
+        :param deploy_commands: BACON ``deploy.commands``, so a toolset deploy
+            requirement's ``applies_to.tool`` can be matched.
+        :type deploy_commands: Optional[List]
         :returns: The newly created RepoClassVersion object
         :rtype: RepoClassVersion
         """
@@ -491,6 +509,8 @@ class ClassInformation:
             version_notes,
             external_artifacts,
             discovery,
+            toolset,
+            deploy_commands,
         )
 
     def _resolve_dependency_classes(self, dependencies: Dict) -> None:
