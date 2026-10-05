@@ -9,7 +9,7 @@ the single-package service (NERD0015).
 import logging
 from typing import Dict, List
 
-from hmd_cli_tools import ServiceException, HmdEntityNotFoundException
+from hmd_base_service.exceptions import ServiceException, HmdEntityNotFoundException
 from hmd_graphql_client.hmd_db_engine_client import DbEngineClient
 from hmd_graphql_client.relationship_support import RelationshipSupport
 from hmd_lang_deployment.hmd_lang_deployment_client import HmdLangDeploymentClient

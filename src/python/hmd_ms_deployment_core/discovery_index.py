@@ -23,8 +23,7 @@ from json import dumps, loads
 from logging import getLogger
 from typing import Dict, Iterable, List, Optional
 
-from hmd_cli_tools import ServiceException
-
+from hmd_base_service.exceptions import ServiceException
 from .class_information import ClassInformation
 from .version import sort_versions
 

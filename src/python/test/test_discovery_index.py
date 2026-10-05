@@ -13,7 +13,7 @@ These cover SPEC0002 (matching rules) and SPEC0003 (index construction):
 """
 
 import pytest
-from hmd_cli_tools import ServiceException
+from hmd_base_service.exceptions import ServiceException
 from hmd_graphql_client.hmd_memory_client import MemoryClient
 from hmd_lang_deployment.hmd_lang_deployment_client import HmdLangDeploymentClient
 from hmd_schema_loader import DefaultLoader

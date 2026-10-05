@@ -15,7 +15,7 @@ import logging
 from collections import OrderedDict, defaultdict, deque
 from typing import Dict, List, Set
 
-from hmd_cli_tools import ServiceException
+from hmd_base_service.exceptions import ServiceException
 from hmd_graphql_client.relationship_support import RelationshipSupport
 from hmd_lang_deployment.repo_class import RepoClass
 from hmd_lang_deployment.repo_class_version import RepoClassVersion

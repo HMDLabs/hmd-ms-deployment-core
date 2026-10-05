@@ -7,8 +7,7 @@ contract nsctl and the GUI rely on.
 """
 
 import pytest
-from hmd_cli_tools import ServiceException
-
+from hmd_base_service.exceptions import ServiceException
 from hmd_ms_deployment_core.bom import (
     NO_DATA_MESSAGE,
     NO_ROOTS_MESSAGE,

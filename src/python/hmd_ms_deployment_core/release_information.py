@@ -19,7 +19,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional, Union
 
-from hmd_cli_tools import ServiceException
+from hmd_base_service.exceptions import ServiceException
 from hmd_lang_deployment.bundle_version import BundleVersion
 from hmd_lang_deployment.hmd_lang_deployment_client import HmdLangDeploymentClient
 from hmd_lang_deployment.release import Release

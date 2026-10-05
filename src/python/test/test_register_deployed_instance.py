@@ -2,7 +2,7 @@
 
 import pytest
 
-from hmd_cli_tools import ServiceException
+from hmd_base_service.exceptions import ServiceException
 from hmd_ms_deployment_core import DEPLOYED, DEPLOY_NEXT
 from hmd_ms_deployment_core import operations
 from hmd_ms_deployment_core.environment_information import (

@@ -3,7 +3,7 @@ from collections import Counter
 
 import pytest
 
-from hmd_cli_tools import ServiceException
+from hmd_base_service.exceptions import ServiceException
 from hmd_graphql_client.hmd_memory_client import MemoryClient
 from hmd_graphql_client.relationship_support import RelationshipSupport
 from hmd_lang_deployment.environment import Environment

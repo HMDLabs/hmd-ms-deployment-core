@@ -2,6 +2,8 @@
 
 ## 2026-10-05
 
+- fix: raise hmd_base_service.exceptions.ServiceException instead of hmd_cli_tools'; hmd-base-service 0.2.222's REST handler maps only its own class, so every 4xx came back as a bare 500
+- fix: build on hmd-ms-base 0.2.282, the oldest base a service behind an nsctl environment route can run on (NERD024)
 - feat: Bundle registry (NERD0010): `upsert_bundle_version`, `upsert_bundle_versions` (every bundle a repo class such as `hmd-bundle-core` declares, versioned by that repo's version) and `get_bundle_version`
 - feat: Release registry (NERD0016): ReleaseVersion lifecycle (candidate, verifying, verified, failed, released, superseded), `install_release` reporting per-artifact arrival, `get_release_version` and `check_release_coverage`
 - refactor: `validate_changeset` body extracted into `changeset_validation.validate_changes` so generated ChangeSets get the same checks; list-valued dependency roles are now resolved instead of raising

@@ -1,6 +1,6 @@
 # syntax = docker/dockerfile:1.0-experimental
 
-FROM ghcr.io/hmdlabs/hmd-ms-base:0.2.260
+FROM ghcr.io/hmdlabs/hmd-ms-base:0.2.282
 
 COPY meta-data/ /meta-data
 COPY src/python/ /src/python

@@ -16,7 +16,7 @@ import copy
 import logging
 from typing import Dict, List, Optional, Tuple
 
-from hmd_cli_tools import ServiceException
+from hmd_base_service.exceptions import ServiceException
 from hmd_lang_deployment.bundle import Bundle
 from hmd_lang_deployment.bundle_has_bundle_version import BundleHasBundleVersion
 from hmd_lang_deployment.bundle_version import BundleVersion

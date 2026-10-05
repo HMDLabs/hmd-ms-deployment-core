@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
-from hmd_cli_tools import ServiceException
+from hmd_base_service.exceptions import ServiceException
 from hmd_graphql_client.relationship_support import RelationshipSupport
 from hmd_lang_deployment.hmd_lang_deployment_client import HmdLangDeploymentClient
 from hmd_lang_deployment.repo_class_version import RepoClassVersion

@@ -9,7 +9,7 @@ from json import load
 from pathlib import Path
 from typing import List, Type, Dict, Union, Optional, Tuple
 
-from hmd_cli_tools import ServiceException
+from hmd_base_service.exceptions import ServiceException
 from hmd_graphql_client import BaseClient
 from hmd_graphql_client.hmd_db_engine_client import DbEngineClient
 from hmd_graphql_client.relationship_support import RelationshipSupport

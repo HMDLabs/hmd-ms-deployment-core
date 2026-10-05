@@ -3,7 +3,7 @@ import io
 from collections import defaultdict
 from typing import Callable, Dict, List, NamedTuple, Optional
 
-from hmd_cli_tools import ServiceException
+from hmd_base_service.exceptions import ServiceException
 from hmd_lang_deployment.repo_class_version_has_repo_class_version_notes import (
     RepoClassVersionHasRepoClassVersionNotes,
 )

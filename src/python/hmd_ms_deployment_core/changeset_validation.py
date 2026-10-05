@@ -9,7 +9,7 @@ the checks a hand-written ChangeSet gets. It performs no DB writes.
 import logging
 from typing import Iterable, List, Optional, Tuple
 
-from hmd_cli_tools import ServiceException
+from hmd_base_service.exceptions import ServiceException
 from hmd_lang_deployment.hmd_lang_deployment_client import HmdLangDeploymentClient
 
 from .class_information import ClassInformation
