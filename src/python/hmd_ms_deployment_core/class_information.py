@@ -1,7 +1,7 @@
 import copy
 import io
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, NamedTuple, Optional
 
 from hmd_cli_tools import ServiceException
 from hmd_lang_deployment.repo_class_version_has_repo_class_version_notes import (
@@ -120,6 +120,27 @@ def generate_full_diagram(
         draw_puml_relationship(rel, dest, rel_attrs_to_display.get(rel.__class__, []))
     print("@enduml", file=dest)
     return dest.getvalue()
+
+
+class DependencyEdges(NamedTuple):
+    """The relationship types a set of dependency roles is wired with."""
+
+    class_req_type: type
+    resource_req_type: type
+    class_reqs: Callable
+    resource_reqs: Callable
+
+
+REPO_CLASS_VERSION_EDGES = DependencyEdges(
+    RepoClassVersionReqRepoClass,
+    RepoClassVersionReqResourceDefinition,
+    lambda client, rcv: client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
+        rcv
+    ),
+    lambda client, rcv: client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
+        rcv
+    ),
+)
 
 
 class ClassInformation:
@@ -297,7 +318,10 @@ class ClassInformation:
         return rel.ref_to if isinstance(rel.ref_to, str) else rel.ref_to.identifier
 
     def _wire_dependencies(
-        self, repo_class_version: RepoClassVersion, dependencies: Dict
+        self,
+        repo_class_version: RepoClassVersion,
+        dependencies: Dict,
+        edges: Optional["DependencyEdges"] = None,
     ) -> None:
         """Create the dependency edges (class-name and/or resource-type) for
         every role in ``dependencies`` against an existing ``repo_class_version``.
@@ -319,18 +343,20 @@ class ClassInformation:
         ref_from/ref_to/role), so this is required for
         ``resync_repo_class_version_dependencies`` to be safely re-callable
         against a version that's already partially or fully wired.
+
+        ``edges`` selects the relationship types written; it defaults to the
+        RepoClassVersion ones. A BundleVersion's roles use the identical
+        vocabulary and are wired through here with the bundle edge types
+        (NERD0010 SPEC0002/SPEC0003).
         """
+        edges = edges or REPO_CLASS_VERSION_EDGES
         existing_class_reqs = {
             (rel.role, self._ref_to_id(rel))
-            for rel in self.client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
-                repo_class_version
-            )
+            for rel in edges.class_reqs(self.client, repo_class_version)
         }
         existing_resource_reqs = {
             (rel.role, self._ref_to_id(rel))
-            for rel in self.client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
-                repo_class_version
-            )
+            for rel in edges.resource_reqs(self.client, repo_class_version)
         }
 
         failures: List[str] = []
@@ -344,7 +370,7 @@ class ClassInformation:
                 if dep.get("repo_class") is not None:
                     ref_to = dep["repo_class"].identifier
                     if (role, ref_to) not in existing_class_reqs:
-                        new_rel = RepoClassVersionReqRepoClass(
+                        new_rel = edges.class_req_type(
                             ref_from=repo_class_version.identifier,
                             ref_to=ref_to,
                             required=dep.get("required"),
@@ -362,7 +388,12 @@ class ClassInformation:
                 resource = dep.get("resource")
                 if resource is not None:
                     self._add_resource_dependency(
-                        repo_class_version, role, dep, resource, existing_resource_reqs
+                        repo_class_version,
+                        role,
+                        dep,
+                        resource,
+                        existing_resource_reqs,
+                        edges,
                     )
             except Exception as ex:
                 failures.append(f"{role}: {ex}")
@@ -380,9 +411,12 @@ class ClassInformation:
         dep: Dict,
         resource: Dict,
         existing_resource_reqs: Optional[set] = None,
+        edges: Optional["DependencyEdges"] = None,
     ) -> None:
         """Create the authoritative ``repo_class_version_req_resource_definition``
-        edge for a role that declares a resource-type dependency."""
+        edge (or ``edges.resource_req_type``) for a role that declares a
+        resource-type dependency."""
+        edges = edges or REPO_CLASS_VERSION_EDGES
         # Imported lazily to avoid a circular import (resource_information
         # imports build_relationship_support from this module).
         from .resource_information import ResourceInformation
@@ -430,7 +464,7 @@ class ClassInformation:
         ):
             return
 
-        res_rel = RepoClassVersionReqResourceDefinition(
+        res_rel = edges.resource_req_type(
             ref_from=repo_class_version.identifier,
             ref_to=rd.identifier,
             required=dep.get("required"),

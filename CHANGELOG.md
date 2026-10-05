@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-05
+
+- feat: Bundle registry (NERD0010): `upsert_bundle_version`, `upsert_bundle_versions` (every bundle a repo class such as `hmd-bundle-core` declares, versioned by that repo's version) and `get_bundle_version`
+- feat: Release registry (NERD0016): ReleaseVersion lifecycle (candidate, verifying, verified, failed, released, superseded), `install_release` reporting per-artifact arrival, `get_release_version` and `check_release_coverage`
+- refactor: `validate_changeset` body extracted into `changeset_validation.validate_changes` so generated ChangeSets get the same checks; list-valued dependency roles are now resolved instead of raising
+- refactor: dependency-edge wiring parameterized by edge type (`DependencyEdges`) so bundle roles reuse it
+- fix: ordered version specs compare lexicographically; `>=1.2.0` accepted no `2.x` and `>=1.0.0,<2.0.0` rejected `1.5.0`
+- fix: `sort_versions` ordered by patch before minor and major, so `0.1.4` sorted ahead of `0.2.0`
+
 ## 2026-10-02
 
 - feat: evaluate BACON toolset deploy requirements (`DeployRequirementEvaluator`) in `validate_changeset`, against the tool set image each environment's deploys run on; optional `environments` and `acknowledge_requirements` body keys

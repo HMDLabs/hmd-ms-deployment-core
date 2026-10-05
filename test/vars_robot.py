@@ -556,3 +556,56 @@ scoping_admin_submission_list = [
         "tags": [{"key": "scoping", "value": "admin"}],
     }
 ]
+
+# NERD0010 / NERD0016: bundle and release registry. Names are unique per run
+# because a bundle or release version can be registered only once.
+BUNDLE_NAME = f"robot-bundle-{_RUN_ID}"
+RELEASE_NAME = f"robot-release-{_RUN_ID}"
+
+bundle_core_payload = {
+    "source_repo_class_name": "hmd-bundle-core",
+    "source_version": "0.1.0",
+    "bundles": [
+        {
+            "bundle_name": BUNDLE_NAME,
+            "config_schema": {"type": "object", "properties": {"size": {"type": "integer"}}},
+            "default_configuration": {"size": 1},
+            "roles": {
+                "vpc": {"repo_class_name": "test-vpc", "required": "true", "version_spec": "~= 1.0"},
+                "database": {
+                    "repo_class_name": "test-database",
+                    "required": "true",
+                    "version_spec": "~= 1.0",
+                },
+            },
+        },
+        {"bundle_name": f"{BUNDLE_NAME}-broken", "roles": {"nothing": {}}},
+    ],
+}
+
+release_install_payload = {
+    "lock": {
+        "repo_class_name": "hmd-bundle-core",
+        "resolved": [
+            {
+                "repo_class_name": "test-vpc",
+                "version": "1.0.0",
+                "content_path": "repository:/test-vpc/1.0.0/test-vpc_1.0.0_build.zip",
+            },
+            {
+                "repo_class_name": "test-database",
+                "version": "1.0.0",
+                "content_path": "repository:/test-database/1.0.0/test-database_1.0.0_build.zip",
+            },
+        ],
+    },
+    "release": {
+        "release_name": RELEASE_NAME,
+        "version": "0.1.0",
+        "reference_bom": [],
+        "config_policy": {"required": ["*.account"]},
+    },
+}
+
+release_coverage_payload = {"pins": {"test-vpc": "1.0.0", "test-database": "1.0.0"}}
+release_coverage_untested_payload = {"pins": {"test-vpc": "1.1.0", "test-database": "1.0.0"}}

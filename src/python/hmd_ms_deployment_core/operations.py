@@ -7,7 +7,7 @@ the single-package service (NERD0015).
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 from hmd_cli_tools import ServiceException, HmdEntityNotFoundException
 from hmd_graphql_client.hmd_db_engine_client import DbEngineClient
@@ -24,11 +24,14 @@ from .bom import (
     build_environment_bom_or_empty,
     find_class_instances,
 )
+from ._artifact_presence_hook import get_artifact_presence
+from .bundle_information import BundleInformation, bundle_version_to_dict
+from .changeset_validation import validate_changes
 from .class_information import ClassInformation
-from .deploy_requirements import DeployRequirementEvaluator
 from .discovery_index import get_or_build_index, search_index
 from .environment_information import EnvironmentInformation
 from .instance_config import InstanceConfigResolver, with_details
+from .release_information import ReleaseInformation, release_version_to_dict
 from .resource_information import ResourceInformation, seed_base_catalog_best_effort
 from .version import VersionSpecifier, sort_versions
 
@@ -931,6 +934,118 @@ def setup(service):
         )
 
     @service.operation(
+        rest_path="/apiop/upsert_bundle_version",
+        rest_methods=["POST"],
+        args={"payload": "json"},
+    )
+    def upsert_bundle_version(evt, ctx):
+        """Register one Bundle declaration (NERD0010 SPEC0005).
+
+        Body: the ``meta-data/bundles/<name>.json`` shape -- ``bundle_name``,
+        ``version``, ``roles``, optional ``config_schema``,
+        ``default_configuration`` and ``discovery``. Idempotent for an
+        unchanged re-POST; an error for changed content under an existing
+        version.
+        """
+        deploy_client = _get_deploy_client(evt, ctx)
+        payload = evt["args"]["payload"]
+        bv, status = BundleInformation(deploy_client).add_bundle_version(payload)
+        return {**bundle_version_to_dict(payload["bundle_name"], bv), "status": status}
+
+    @service.operation(
+        rest_path="/apiop/upsert_bundle_versions",
+        rest_methods=["POST"],
+        args={"payload": "json"},
+    )
+    def upsert_bundle_versions(evt, ctx):
+        """Register every Bundle a repo class declares (``hmd-bundle-core``).
+
+        Body: ``{"source_repo_class_name", "source_version", "bundles": [...]}``.
+        A bundle without its own ``version`` takes ``source_version``. Each
+        bundle succeeds or fails on its own; returns ``{"results": [...]}``.
+        """
+        deploy_client = _get_deploy_client(evt, ctx)
+        payload = evt["args"]["payload"]
+        results = BundleInformation(deploy_client).add_bundle_versions(
+            payload.get("source_repo_class_name"),
+            payload.get("source_version"),
+            payload.get("bundles") or [],
+        )
+        return {"results": results}
+
+    @service.operation(
+        rest_path="/apiop/get_bundle_version/<args_name>",
+        rest_methods=["GET"],
+        args={"name": "string"},
+    )
+    def get_bundle_version(evt, ctx):
+        """A Bundle version: ``?version=`` exact, ``?version_spec=`` newest
+        satisfying, otherwise the newest."""
+        deploy_client = _get_deploy_client(evt, ctx)
+        name = evt["args"]["name"]
+        query = _query_params(evt)
+        bv = BundleInformation(deploy_client).get_bundle_version(
+            name, query.get("version"), query.get("version_spec")
+        )
+        return bundle_version_to_dict(name, bv)
+
+    @service.operation(
+        rest_path="/apiop/install_release",
+        rest_methods=["POST"],
+        args={"payload": "json"},
+    )
+    def install_release(evt, ctx):
+        """Record a delivered Release and report its arrival (NERD0016 SPEC0005).
+
+        Body: ``{"lock": <neuronsphere.lock as JSON>, "release": <release.json>}``.
+        Moves no bytes and deploys nothing. Returns per-entry status
+        (``present`` / ``awaiting_replication`` / ``digest_mismatch`` /
+        ``awaiting_registration``) and ``installed`` once every entry is present.
+        """
+        deploy_client = _get_deploy_client(evt, ctx)
+        payload = evt["args"]["payload"]
+        return ReleaseInformation(
+            deploy_client, get_artifact_presence()
+        ).install_release(payload.get("lock") or {}, payload.get("release") or {})
+
+    @service.operation(
+        rest_path="/apiop/get_release_version/<args_name>",
+        rest_methods=["GET"],
+        args={"name": "string"},
+    )
+    def get_release_version(evt, ctx):
+        """A Release version: ``?version=`` exact, else the newest, optionally
+        restricted by ``?status=a,b``."""
+        deploy_client = _get_deploy_client(evt, ctx)
+        name = evt["args"]["name"]
+        query = _query_params(evt)
+        statuses = query.get("status")
+        rv = ReleaseInformation(deploy_client).get_release_version(
+            name,
+            query.get("version"),
+            statuses.split(",") if statuses else None,
+        )
+        return release_version_to_dict(name, rv)
+
+    @service.operation(
+        rest_path="/apiop/check_release_coverage",
+        rest_methods=["POST"],
+        args={"payload": "json"},
+    )
+    def check_release_coverage(evt, ctx):
+        """Is this exact combination one that was tested? (NERD0016 SPEC0022)
+
+        Body: ``{"pins": {class: version}}`` or ``{"definition": [<ChangeSet
+        definition items>]}``. Reads catalogue and Release data only.
+        """
+        deploy_client = _get_deploy_client(evt, ctx)
+        payload = evt["args"]["payload"]
+        submitted = payload.get("pins") or payload.get("definition")
+        if not submitted:
+            raise ServiceException("Provide 'pins' or 'definition'.", 400)
+        return ReleaseInformation(deploy_client).check_release_coverage(submitted)
+
+    @service.operation(
         rest_path="/apiop/validate_changeset",
         rest_methods=["POST"],
         args={"payload": "json"},
@@ -960,207 +1075,12 @@ def setup(service):
         """
         deploy_client = _get_deploy_client(evt, ctx)
         payload = evt["args"]["payload"]
-        changes = payload.get("changes", [])
-
-        errors: List[dict] = []
-        warnings: List[dict] = []
-
-        def _err(kind: str, instance: str, message: str) -> None:
-            errors.append({"type": kind, "instance": instance, "message": message})
-
-        def _warn(kind: str, instance: str, message: str) -> None:
-            warnings.append({"type": kind, "instance": instance, "message": message})
-
-        if not isinstance(changes, list) or not changes:
-            return {
-                "valid": False,
-                "errors": [
-                    {
-                        "type": "schema",
-                        "instance": "",
-                        "message": "'changes' must be a non-empty list.",
-                    }
-                ],
-                "warnings": [],
-            }
-
-        class_info = ClassInformation(deploy_client)
-
-        # Index changes by repo_instance_name so dependency references can be
-        # resolved against siblings in the same proposed changeset.
-        instances_by_name: dict = {}
-        for change in changes:
-            name = change.get("repo_instance_name")
-            if not name:
-                _err(
-                    "schema",
-                    "",
-                    "Each change must include 'repo_instance_name'.",
-                )
-                continue
-            if name in instances_by_name:
-                _err(
-                    "duplicate",
-                    name,
-                    f"Repo instance '{name}' appears more than once in the change set.",
-                )
-            instances_by_name[name] = change
-
-        # Per-instance validation: class + version exists, version_spec on each
-        # required role on the class version is supplied, dependency targets
-        # resolve.
-        for name, change in instances_by_name.items():
-            repo_class_name = change.get("repo_class_name")
-            repo_class_version = change.get("repo_class_version")
-            if not repo_class_name or not repo_class_version:
-                _err(
-                    "schema",
-                    name,
-                    "Each change must include 'repo_class_name' and 'repo_class_version'.",
-                )
-                continue
-
-            try:
-                rcv = class_info.get_repo_class_version(
-                    repo_class_name, repo_class_version
-                )
-            except ServiceException as e:
-                _err("missing_class_version", name, str(e))
-                continue
-
-            required_roles: List[Tuple[str, str, str]] = []
-            for (
-                rel
-            ) in deploy_client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
-                rcv
-            ):
-                role = rel.role
-                version_spec = rel.version_spec
-                required = str(rel.required).lower() == "true"
-                required_roles.append((role, version_spec, required))
-
-            supplied_deps = change.get("dependencies") or {}
-            for role, version_spec, required in required_roles:
-                if role not in supplied_deps:
-                    if required:
-                        _err(
-                            "missing_required_role",
-                            name,
-                            f"Required dependency role '{role}' (spec {version_spec}) is not supplied.",
-                        )
-                    else:
-                        _warn(
-                            "missing_optional_role",
-                            name,
-                            f"Optional dependency role '{role}' (spec {version_spec}) is not supplied.",
-                        )
-
-            for role, dep_target in supplied_deps.items():
-                target_name = dep_target
-                # NERD0002 shorthand: ns:<instance>:<deployment_id>
-                if isinstance(dep_target, str) and dep_target.startswith("ns:"):
-                    parts = dep_target.split(":")
-                    if len(parts) >= 2:
-                        target_name = parts[1]
-                if target_name not in instances_by_name:
-                    # Allow already-deployed instances (best-effort check via
-                    # RepoInstance search) — only flag if it isn't a sibling
-                    # change AND no matching RepoInstance exists.
-                    existing = deploy_client.search_repo_instance_hmd_lang_deployment(
-                        {"attribute": "name", "operator": "=", "value": target_name}
-                    )
-                    if not existing:
-                        _err(
-                            "unresolved_dependency",
-                            name,
-                            f"Dependency '{role}' -> '{target_name}' is neither in the change set "
-                            f"nor an existing deployed RepoInstance.",
-                        )
-
-        # BACON toolset deploy requirements: what the tool set that will run
-        # these deploys needs of their dependencies.
-        env_infos: List[Optional[EnvironmentInformation]] = []
-        environment_types = payload.get("environments") or []
-        if environment_types:
-            known = {
-                env.type: env
-                for env in deploy_client.search_environment_hmd_lang_deployment({})
-            }
-            for environment_type in environment_types:
-                if environment_type not in known:
-                    _err(
-                        "unknown_environment",
-                        "",
-                        f"Environment '{environment_type}' does not exist.",
-                    )
-                    continue
-                env_infos.append(
-                    EnvironmentInformation(known[environment_type], deploy_client)
-                )
-        else:
-            env_infos.append(None)
-
-        evaluator = DeployRequirementEvaluator(deploy_client)
-        seen_findings: set = set()
-        for env_info in env_infos:
-            findings = evaluator.evaluate(
-                list(instances_by_name.values()),
-                env_info,
-                acknowledged=payload.get("acknowledge_requirements") or (),
-            )
-            for kind, target in (("errors", errors), ("warnings", warnings)):
-                for finding in findings[kind]:
-                    key = (finding["type"], finding["instance"], finding["message"])
-                    if key not in seen_findings:
-                        seen_findings.add(key)
-                        target.append(finding)
-
-        # Cycle detection over instances supplied in this changeset.
-        WHITE, GRAY, BLACK = 0, 1, 2
-        color = {name: WHITE for name in instances_by_name}
-
-        def _visit(name: str, stack: List[str]) -> Optional[List[str]]:
-            color[name] = GRAY
-            stack.append(name)
-            for _, target in (
-                instances_by_name[name].get("dependencies") or {}
-            ).items():
-                target_name = target
-                if isinstance(target, str) and target.startswith("ns:"):
-                    parts = target.split(":")
-                    if len(parts) >= 2:
-                        target_name = parts[1]
-                if target_name not in color:
-                    continue
-                if color[target_name] == GRAY:
-                    return stack[stack.index(target_name) :] + [target_name]
-                if color[target_name] == WHITE:
-                    cycle = _visit(target_name, stack)
-                    if cycle is not None:
-                        return cycle
-            stack.pop()
-            color[name] = BLACK
-            return None
-
-        reported_cycles: set = set()
-        for name in list(color.keys()):
-            if color[name] == WHITE:
-                cycle = _visit(name, [])
-                if cycle is not None:
-                    key = tuple(sorted(set(cycle)))
-                    if key not in reported_cycles:
-                        reported_cycles.add(key)
-                        _err(
-                            "circular_dependency",
-                            cycle[0],
-                            "Circular dependency detected: " + " -> ".join(cycle),
-                        )
-
-        return {
-            "valid": not errors,
-            "errors": errors,
-            "warnings": warnings,
-        }
+        return validate_changes(
+            deploy_client,
+            payload.get("changes", []),
+            environment_types=payload.get("environments") or [],
+            acknowledged=payload.get("acknowledge_requirements") or (),
+        )
 
     @service.operation(
         rest_path="/apiop/compare_environments",

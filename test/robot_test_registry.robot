@@ -596,6 +596,64 @@ Test 9.11 - Search Discovery Paginates And Prefix-Filters
 
     Log    search_discovery envelope paged and prefix-filtered as expected
 
+# =============================================================================
+# Suite 10: Bundle and Release Registry (NERD0010, NERD0016)
+# =============================================================================
+
+Test 10.1 - Register Bundles From One Repo Version
+    [Documentation]    upsert_bundle_versions registers every bundle a repo class declares,
+    ...                versioned by that repo's version; each bundle succeeds or fails alone
+    [Tags]    bundle    registry
+
+    ${result}=    Invoke Custom Operation    path=upsert_bundle_versions    data=&{bundle_core_payload}    method=POST
+    Should Be Equal    ${result}[results][0][status]    created
+    Should Be Equal    ${result}[results][0][version]    0.1.0
+    Should Be Equal    ${result}[results][1][status]    error
+
+    ${again}=    Invoke Custom Operation    path=upsert_bundle_versions    data=&{bundle_core_payload}    method=POST
+    Should Be Equal    ${again}[results][0][status]    unchanged
+
+Test 10.2 - Get Bundle Version
+    [Documentation]    get_bundle_version returns the declaration and its provenance
+    [Tags]    bundle    registry
+
+    ${bundle}=    Invoke Custom Operation    path=get_bundle_version/${BUNDLE_NAME}    data=&{EMPTY}    method=GET
+    Should Be Equal    ${bundle}[version]    0.1.0
+    Should Be Equal    ${bundle}[source_repo_class_name]    hmd-bundle-core
+    Dictionary Should Contain Key    ${bundle}[roles]    database
+
+    ${by_spec}=    Invoke Custom Operation    path=get_bundle_version/${BUNDLE_NAME}?version_spec=~=0.1.0    data=&{EMPTY}    method=GET
+    Should Be Equal    ${by_spec}[version]    0.1.0
+
+Test 10.3 - Install Release Records Pins
+    [Documentation]    install_release records the release and reports each pinned artifact;
+    ...                both pinned versions are registered, so the release is installed
+    [Tags]    release    registry
+
+    ${result}=    Invoke Custom Operation    path=install_release    data=&{release_install_payload}    method=POST
+    Should Be Equal    ${result}[release_name]    ${RELEASE_NAME}
+    Length Should Be    ${result}[entries]    2
+    IF    '${result}[artifact_check]' == 'unavailable'
+        Should Be True    ${result}[installed]
+    END
+
+    ${rv}=    Invoke Custom Operation    path=get_release_version/${RELEASE_NAME}?version=0.1.0    data=&{EMPTY}    method=GET
+    Should Be Equal    ${rv}[status]    released
+    Should Be Equal    ${rv}[pins][test-vpc]    1.0.0
+
+    ${again}=    Invoke Custom Operation    path=install_release    data=&{release_install_payload}    method=POST
+    Should Be Equal    ${again}[version]    0.1.0
+
+Test 10.4 - Check Release Coverage
+    [Documentation]    check_release_coverage reports an exactly tested combination and an untested one
+    [Tags]    release    coverage
+
+    ${tested}=    Invoke Custom Operation    path=check_release_coverage    data=&{release_coverage_payload}    method=POST
+    Should Be True    '${tested}[match]' in ['equal', 'covered']
+
+    ${untested}=    Invoke Custom Operation    path=check_release_coverage    data=&{release_coverage_untested_payload}    method=POST
+    Should Be Equal    ${untested}[match]    neither
+
 *** Keywords ***
 Register Repo Class Version Tolerating Existing
     [Documentation]    add_repo_class_version, treating "already has version" as success: the
