@@ -133,12 +133,15 @@ class Ordered(AbstractVersionSpecEvaluator):
 
     def validate(self, version: str):
         int_version = [int(cmp) for cmp in version.split(".")]
+        # Lexicographic: the first differing component decides.
         for n, cmp in enumerate(self.int_spec):
             compare = self.operator(cmp, int_version[n])
+            if compare == 1:
+                return
             if compare == -1:
                 raise VersionSpecifierException(self.symbol, self.spec, version)
-            elif not self.inclusive and compare == 0 and n == len(int_version) - 1:
-                raise VersionSpecifierException(self.symbol, self.spec, version)
+        if not self.inclusive:
+            raise VersionSpecifierException(self.symbol, self.spec, version)
 
 
 class VersionSpecifier:
@@ -221,9 +224,16 @@ def sort_versions(versions: List, key: Callable):
             )
             unsortable.append(v)
 
-    sortable.sort(key=lambda v: sort_major_versions(key(v)), reverse=True)
-    sortable.sort(key=lambda v: sort_minor_versions(key(v)), reverse=True)
-    sortable.sort(key=lambda v: sort_builds(key(v)), reverse=True)
+    # Major is most significant; one tuple key, not successive stable sorts
+    # (which made the last sort -- the build number -- dominate).
+    sortable.sort(
+        key=lambda v: (
+            sort_major_versions(key(v)),
+            sort_minor_versions(key(v)),
+            sort_builds(key(v)),
+        ),
+        reverse=True,
+    )
 
     unsortable.sort(key=lambda v: str(key(v) or ""))
 

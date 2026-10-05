@@ -51,6 +51,19 @@ def does_not_raise():
         ("== 1.2.*,>=1.2.4", "1.2.4", does_not_raise()),
         ("~= 1.2.4", "1.2.4", does_not_raise()),
         ("~= 1.2.4", "1.2.4", does_not_raise()),
+        # Ordered comparisons are lexicographic across major/minor boundaries.
+        (">= 1.2.0", "2.0.0", does_not_raise()),
+        (">= 1.2.5", "1.3.0", does_not_raise()),
+        ("> 1.0.0", "2.0.0", does_not_raise()),
+        ("> 1.2.3", "1.3.0", does_not_raise()),
+        (">= 2.0.0", "1.9.9", pytest.raises(VersionSpecifierException)),
+        ("< 2.0.0", "1.9.9", does_not_raise()),
+        ("<= 1.2.3", "1.1.9", does_not_raise()),
+        ("< 1.2.3", "0.9.9", does_not_raise()),
+        ("< 2.0.0", "2.0.1", pytest.raises(VersionSpecifierException)),
+        (">= 1.0.0,< 2.0.0", "1.5.0", does_not_raise()),
+        (">= 1.0.0,< 2.0.0", "2.0.0", pytest.raises(VersionSpecifierException)),
+        (">= 1.0.0,< 2.0.0", "0.9.0", pytest.raises(VersionSpecifierException)),
     ],
 )
 def test_version_validation(spec, version, expectation):
@@ -85,6 +98,13 @@ def _keys(result):
 def test_sort_versions_sorts_numeric_descending():
     result = sort_versions(_versions("1.0.0", "2.1.3", "1.2.0"), lambda v: v["version"])
     assert _keys(result) == ["2.1.3", "1.2.0", "1.0.0"]
+
+
+def test_sort_versions_orders_by_major_then_minor_then_build():
+    result = sort_versions(
+        _versions("0.1.4", "0.2.0", "1.0.0", "0.1.10", "0.10.1"), lambda v: v["version"]
+    )
+    assert _keys(result) == ["1.0.0", "0.10.1", "0.2.0", "0.1.10", "0.1.4"]
 
 
 def test_sort_versions_appends_non_numeric_at_end():
