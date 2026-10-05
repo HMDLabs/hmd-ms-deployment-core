@@ -1,4 +1,4 @@
-hmd-lang-deployment~=0.1.88
+hmd-lang-deployment~=0.1.94
 hmd-lang-timestamp-record==0.1.4
 hmd-graphql-client~=0.1.171
 hmd-cli-tools~=1.2.244
