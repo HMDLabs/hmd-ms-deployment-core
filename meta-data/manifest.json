@@ -4,7 +4,7 @@
   "build": {
     "pre_build_artifacts": [
       [
-        "hmd-lang-deployment@0.1.96:schema",
+        "hmd-lang-deployment@0.1.97:schema",
         [
           "src/python/schemas/local"
         ]
