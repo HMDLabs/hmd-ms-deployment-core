@@ -644,6 +644,21 @@ Test 10.3 - Install Release Records Pins
     ${again}=    Invoke Custom Operation    path=install_release    data=&{release_install_payload}    method=POST
     Should Be Equal    ${again}[version]    0.1.0
 
+Test 10.3b - Release Install Status
+    [Documentation]    release_install_status returns the stored install report without writing;
+    ...                refreshing recomputes it, and a missing version is refused
+    [Tags]    release    registry
+
+    ${status}=    Invoke Custom Operation    path=release_install_status/${RELEASE_NAME}?version=0.1.0    data=&{EMPTY}    method=GET
+    Length Should Be    ${status}[entries]    2
+    IF    '${status}[artifact_check]' == 'unavailable'
+        Should Be True    ${status}[installed]
+    END
+    ${fresh}=    Invoke Custom Operation    path=release_install_status/${RELEASE_NAME}?version=0.1.0&refresh=true    data=&{EMPTY}    method=GET
+    Should Be Equal    ${fresh}[installed]    ${status}[installed]
+    Run Keyword And Expect Error    *version*
+    ...    Invoke Custom Operation    path=release_install_status/${RELEASE_NAME}    data=&{EMPTY}    method=GET
+
 Test 10.4 - Check Release Coverage
     [Documentation]    check_release_coverage reports an exactly tested combination and an untested one
     [Tags]    release    coverage

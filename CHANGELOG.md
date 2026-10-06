@@ -2,6 +2,7 @@
 
 ## 2026-10-06
 
+- feat: installed releases keep their install report (`install_report`) and the publisher's evidence and notes; `release_install_status` returns it, recomputed without writing on `?refresh=true`; retries skip settled artifacts and stop at a digest mismatch
 - fix: a release pin is a (repo class, version) pair: install, coverage and pins_of accept a class pinned at several versions (a generic bucket class runs at several versions in one bundle); coverage keys its per-pin report `class@version`
 
 ## 2026-10-05

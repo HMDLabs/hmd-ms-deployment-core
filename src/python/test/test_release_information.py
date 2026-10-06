@@ -322,3 +322,81 @@ def test_install_accepts_a_class_at_several_versions():
         _release_json(reference_bom=bom),
     )
     assert result["installed"] is True
+
+
+class CountingPresence(FakePresence):
+    def __init__(self, statuses):
+        super().__init__(statuses)
+        self.calls = []
+
+    def status(self, content_path, digest):
+        self.calls.append(content_path)
+        return super().status(content_path, digest)
+
+
+def test_install_report_is_stored_and_retries_skip_settled_artifacts():
+    client = _registered(OTEL)
+    presence = CountingPresence({_path(OTEL): "present"})
+    info = ReleaseInformation(client, presence)
+    info.install_release(_lock(OTEL, CH), _release_json())
+    assert presence.calls == [_path(OTEL), _path(CH)]
+
+    rv = info.get_release_version("telemetry", "0.1.7")
+    assert rv.install_report["installed"] is False
+    assert (
+        info.install_status("telemetry", "0.1.7")["entries"][1]["status"]
+        == "awaiting_replication"
+    )
+    assert [p.version for p in info.pending_installs()] == ["0.1.7"]
+
+    # clickhouse arrives and is registered: the retry checks only what was not settled
+    presence.statuses[_path(CH)] = "present"
+    ClassInformation(client).add_repo_version_by_name(*CH, {}, {})
+    presence.calls.clear()
+    result = info.reinstall(rv)
+    assert presence.calls == [_path(CH)]
+    assert result["installed"] is True
+    assert info.pending_installs() == []
+
+
+def test_digest_mismatch_blocks_and_is_not_retried():
+    client = _registered(OTEL)
+    presence = CountingPresence({_path(OTEL): "digest_mismatch"})
+    info = ReleaseInformation(client, presence)
+    info.install_release(_lock(OTEL), _release_json())
+    assert info.pending_installs() == []
+    presence.calls.clear()
+    info.reinstall(info.get_release_version("telemetry", "0.1.7"))
+    assert presence.calls == []
+
+
+def test_refreshed_status_writes_nothing():
+    client = _registered(OTEL)
+    presence = CountingPresence({})
+    info = ReleaseInformation(client, presence)
+    info.install_release(_lock(OTEL), _release_json())
+    presence.statuses[_path(OTEL)] = "present"
+    fresh = info.install_status("telemetry", "0.1.7", refresh=True)
+    assert fresh["installed"] is True
+    assert (
+        info.get_release_version("telemetry", "0.1.7").install_report["installed"]
+        is False
+    )
+
+
+def test_install_keeps_the_publishers_evidence_and_notes():
+    client = _registered(OTEL)
+    info = ReleaseInformation(client, None)
+    evidence = {"method": "manual", "note": "smoke-tested", "carried_forward": []}
+    info.install_release(
+        _lock(OTEL), {**_release_json(), "evidence": evidence, "notes": [{"x": 1}]}
+    )
+    rv = info.get_release_version("telemetry", "0.1.7")
+    assert rv.evidence == evidence and rv.notes == [{"x": 1}]
+
+
+def test_status_of_a_release_never_installed():
+    client = _registered(OTEL)
+    info = ReleaseInformation(client)
+    rv = info.create_release_version("telemetry", _pins(OTEL), version="0.1.0")
+    assert info.install_status("telemetry", "0.1.0")["installed"] is None

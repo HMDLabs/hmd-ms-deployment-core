@@ -1009,6 +1009,29 @@ def setup(service):
         ).install_release(payload.get("lock") or {}, payload.get("release") or {})
 
     @service.operation(
+        rest_path="/apiop/release_install_status/<args_name>",
+        rest_methods=["GET"],
+        args={"name": "string"},
+    )
+    def release_install_status(evt, ctx):
+        """An installed release's arrival report (NERD0016 SPEC0030): per pinned
+        artifact ``present`` / ``awaiting_replication`` / ``digest_mismatch`` /
+        ``awaiting_registration``, and whether it is installed. ``?version=``
+        selects the version; the stored report is returned unless
+        ``?refresh=true``, which recomputes it -- never writing either way."""
+        deploy_client = _get_deploy_client(evt, ctx)
+        query = _query_params(evt)
+        if not query.get("version"):
+            raise ServiceException("Give ?version=.", 400)
+        return ReleaseInformation(
+            deploy_client, get_artifact_presence()
+        ).install_status(
+            evt["args"]["name"],
+            query["version"],
+            refresh=str(query.get("refresh", "")).lower() == "true",
+        )
+
+    @service.operation(
         rest_path="/apiop/get_release_version/<args_name>",
         rest_methods=["GET"],
         args={"name": "string"},

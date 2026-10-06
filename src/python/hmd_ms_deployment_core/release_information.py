@@ -37,7 +37,7 @@ from hmd_lang_deployment.release_version_pins_repo_class_version import (
     ReleaseVersionPinsRepoClassVersion,
 )
 
-from ._artifact_presence_hook import PRESENT
+from ._artifact_presence_hook import DIGEST_MISMATCH, PRESENT
 from .class_information import ClassInformation
 from .version import VersionSpecifier, sort_versions
 
@@ -279,6 +279,103 @@ class ReleaseInformation:
 
     # --- install (SPEC0005) ----------------------------------------------------
 
+    def _entry_status(self, entry: Dict, previous: Optional[str] = None) -> str:
+        """One lock entry's arrival status. An artifact already found present
+        stays present, and a digest mismatch is final, so a retry neither
+        re-downloads nor re-hashes what it has already settled."""
+        if previous == DIGEST_MISMATCH:
+            return DIGEST_MISMATCH
+        status = PRESENT if previous == PRESENT else None
+        if status is None:
+            status = PRESENT
+            if self.artifact_presence is not None:
+                status = self.artifact_presence.status(
+                    entry.get("content_path"), entry.get("digest")
+                )
+        if status == PRESENT:
+            try:
+                self.class_information.get_repo_class_version(
+                    entry["repo_class_name"], entry["version"]
+                )
+            except ServiceException:
+                status = AWAITING_REGISTRATION
+        return status
+
+    def _report(self, entries: List[Dict], previous: Optional[Dict] = None) -> Dict:
+        before = {
+            (e["repo_class_name"], e["version"]): e.get("status")
+            for e in ((previous or {}).get("entries") or [])
+        }
+        report = [
+            {
+                "repo_class_name": e["repo_class_name"],
+                "version": e["version"],
+                "content_path": e.get("content_path"),
+                "status": self._entry_status(
+                    e, before.get((e["repo_class_name"], e["version"]))
+                ),
+            }
+            for e in entries
+        ]
+        return {
+            "installed": all(e["status"] == PRESENT for e in report),
+            "artifact_check": "available" if self.artifact_presence else "unavailable",
+            "entries": report,
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def install_status(
+        self, release_name: str, version: str, refresh: bool = False
+    ) -> Dict:
+        """The install report of an installed release. The stored one by
+        default; with ``refresh``, recomputed now -- still without writing."""
+        rv = self.get_release_version(release_name, version)
+        report = (
+            self._report(rv.artifacts or [], rv.install_report)
+            if refresh
+            else rv.install_report
+        )
+        if not report:
+            return {
+                "release_name": release_name,
+                "version": rv.version,
+                "installed": None,
+                "entries": [],
+            }
+        return {"release_name": release_name, "version": rv.version, **report}
+
+    def pending_installs(self) -> List[ReleaseVersion]:
+        """Installed releases still waiting for artifacts to arrive or be
+        registered; a digest mismatch is not pending, it is blocked."""
+        pending = []
+        for release in self.client.search_release_hmd_lang_deployment({}):
+            for rv in self.get_release_versions(release):
+                report = rv.install_report or {}
+                if not report or report.get("installed"):
+                    continue
+                if any(
+                    e.get("status") == DIGEST_MISMATCH
+                    for e in report.get("entries") or []
+                ):
+                    continue
+                pending.append(rv)
+        return pending
+
+    def reinstall(self, rv: ReleaseVersion) -> Dict:
+        """Re-run an installed release's install from what it recorded."""
+        return self.install_release(
+            {
+                "repo_class_name": self.release_name_of(rv),
+                "resolved": rv.artifacts or [],
+            },
+            {
+                "release_name": self.release_name_of(rv),
+                "version": rv.version,
+                "reference_bom": rv.reference_bom or [],
+                "config_policy": rv.config_policy,
+            },
+        )
+
     def install_release(self, lock: Dict, release_json: Dict) -> Dict:
         """Record a Release delivered to this control plane and report whether
         its pinned artifacts have arrived.
@@ -315,29 +412,6 @@ class ReleaseInformation:
                 "The lock and release.json disagree on: " + ", ".join(disagree)
             )
 
-        report = []
-        for entry in entries:
-            status = PRESENT
-            if self.artifact_presence is not None:
-                status = self.artifact_presence.status(
-                    entry.get("content_path"), entry.get("digest")
-                )
-            if status == PRESENT:
-                try:
-                    self.class_information.get_repo_class_version(
-                        entry["repo_class_name"], entry["version"]
-                    )
-                except ServiceException:
-                    status = AWAITING_REGISTRATION
-            report.append(
-                {
-                    "repo_class_name": entry["repo_class_name"],
-                    "version": entry["version"],
-                    "content_path": entry.get("content_path"),
-                    "status": status,
-                }
-            )
-
         artifacts = [
             {
                 "repo_class_name": e["repo_class_name"],
@@ -353,15 +427,11 @@ class ReleaseInformation:
         rv = self._record_installed_version(
             release_name, version, artifacts, release_json
         )
-        self._wire_present_pins(rv, report)
-
-        return {
-            "release_name": release_name,
-            "version": version,
-            "installed": all(e["status"] == PRESENT for e in report),
-            "artifact_check": "available" if self.artifact_presence else "unavailable",
-            "entries": report,
-        }
+        install_report = self._report(entries, rv.install_report)
+        self._wire_present_pins(rv, install_report["entries"])
+        rv.install_report = install_report
+        self.client.upsert(rv)
+        return {"release_name": release_name, "version": version, **install_report}
 
     def _record_installed_version(
         self, release_name: str, version: str, artifacts: List[Dict], release_json: Dict
@@ -388,7 +458,10 @@ class ReleaseInformation:
             attestation=release_json.get("attestation"),
             default_configuration=release_json.get("default_configuration"),
             discovery=release_json.get("discovery"),
-            evidence={},
+            # The publisher's evidence travels with the release, so the
+            # receiver sees how it was verified (NERD0016 SPEC0028).
+            evidence=release_json.get("evidence") or {},
+            notes=release_json.get("notes") or [],
             artifacts=artifacts,
         )
         self.client.upsert(rv)
