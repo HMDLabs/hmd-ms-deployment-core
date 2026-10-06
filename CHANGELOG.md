@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-06
+
+- fix: a release pin is a (repo class, version) pair: install, coverage and pins_of accept a class pinned at several versions (a generic bucket class runs at several versions in one bundle); coverage keys its per-pin report `class@version`
+
 ## 2026-10-05
 
 - fix: raise hmd_base_service.exceptions.ServiceException instead of hmd_cli_tools'; hmd-base-service 0.2.222's REST handler maps only its own class, so every 4xx came back as a bare 500

@@ -255,7 +255,7 @@ def test_check_release_coverage():
 
     covered = info.check_release_coverage(dict([OTEL, CH]))
     assert covered["match"] == "covered"
-    assert covered["pins"]["hmd-inf-clickhouse"] == [good.version]
+    assert covered["pins"]["hmd-inf-clickhouse@0.2.7"] == [good.version]
 
     neither = info.check_release_coverage(dict([OTEL, ("hmd-inf-clickhouse", "0.2.8")]))
     assert neither["match"] == "neither"
@@ -280,3 +280,45 @@ def test_coverage_accepts_a_changeset_definition():
         }
     ]
     assert info.check_release_coverage(definition)["match"] == "equal"
+
+
+def test_a_class_pinned_at_several_versions():
+    client = _registered(("hmd-inf-s3bucket", "0.1.11"), ("hmd-inf-s3bucket", "0.1.14"))
+    info = ReleaseInformation(client)
+    rv = info.create_release_version(
+        "telemetry",
+        _pins(("hmd-inf-s3bucket", "0.1.14"), ("hmd-inf-s3bucket", "0.1.11")),
+    )
+    assert info.pins_of(rv) == {"hmd-inf-s3bucket": ["0.1.11", "0.1.14"]}
+    edges = client.get_from_release_version_pins_repo_class_version_hmd_lang_deployment(
+        rv
+    )
+    assert len(edges) == 2
+    info.transition(info.transition(rv, "verifying"), "verified")
+
+    both = info.check_release_coverage({"hmd-inf-s3bucket": ["0.1.11", "0.1.14"]})
+    assert both["match"] == "equal"
+    one = info.check_release_coverage({"hmd-inf-s3bucket": "0.1.11"})
+    assert one["match"] == "covered"
+    assert one["pins"] == {"hmd-inf-s3bucket@0.1.11": [rv.version]}
+
+
+def test_install_accepts_a_class_at_several_versions():
+    client = _registered(("hmd-inf-s3bucket", "0.1.11"), ("hmd-inf-s3bucket", "0.1.14"))
+    bom = [
+        {
+            "repo_instance_name": "a",
+            "repo_class_name": "hmd-inf-s3bucket",
+            "repo_class_version": "0.1.11",
+        },
+        {
+            "repo_instance_name": "b",
+            "repo_class_name": "hmd-inf-s3bucket",
+            "repo_class_version": "0.1.14",
+        },
+    ]
+    result = ReleaseInformation(client, None).install_release(
+        _lock(("hmd-inf-s3bucket", "0.1.11"), ("hmd-inf-s3bucket", "0.1.14")),
+        _release_json(reference_bom=bom),
+    )
+    assert result["installed"] is True

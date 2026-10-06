@@ -17,7 +17,7 @@ Pins are stored twice: as ``release_version_pins_repo_class_version`` edges
 import copy
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from hmd_base_service.exceptions import ServiceException
 from hmd_lang_deployment.bundle_version import BundleVersion
@@ -62,12 +62,39 @@ ALLOWED_TRANSITIONS = {
 AWAITING_REGISTRATION = "awaiting_registration"
 
 
-def pins_from_definition(definition: List[Dict]) -> Dict[str, str]:
-    """``{repo_class_name: version}`` from ChangeSet.definition / BOM items."""
+PinSet = Set[Tuple[str, str]]
+
+
+def pin_set_from_definition(definition: List[Dict]) -> PinSet:
+    """``{(repo_class_name, version)}`` from ChangeSet.definition / BOM items.
+
+    A pin is a (class, version) pair, not a class: one environment routinely
+    runs a generic class (a bucket, credentials) at several versions at once."""
     return {
-        item["repo_class_name"]: item["repo_class_version"]
+        (item["repo_class_name"], item["repo_class_version"])
         for item in definition
         if item.get("repo_class_name") and item.get("repo_class_version")
+    }
+
+
+def pin_set_from_mapping(pins: Dict) -> PinSet:
+    """``{class: version | [versions]}`` as a pin set."""
+    out = set()
+    for cls, versions in pins.items():
+        for version in versions if isinstance(versions, list) else [versions]:
+            out.add((cls, version))
+    return out
+
+
+def pins_mapping(pin_set: PinSet) -> Dict:
+    """A pin set for display: ``{class: version}``, or a sorted list of
+    versions for a class pinned at several."""
+    grouped: Dict[str, List[str]] = {}
+    for cls, version in pin_set:
+        grouped.setdefault(cls, []).append(version)
+    return {
+        cls: versions[0] if len(versions) == 1 else sorted(versions)
+        for cls, versions in sorted(grouped.items())
     }
 
 
@@ -132,8 +159,14 @@ class ReleaseInformation:
         return self.rs.ref_from(rels[0]).release_name
 
     @staticmethod
-    def pins_of(rv: ReleaseVersion) -> Dict[str, str]:
-        return {a["repo_class_name"]: a["version"] for a in (rv.artifacts or [])}
+    def pin_set_of(rv: ReleaseVersion) -> PinSet:
+        return {(a["repo_class_name"], a["version"]) for a in (rv.artifacts or [])}
+
+    @staticmethod
+    def pins_of(rv: ReleaseVersion) -> Dict:
+        """``{class: version}``, or ``{class: [versions]}`` for a class pinned
+        at several versions."""
+        return pins_mapping(ReleaseInformation.pin_set_of(rv))
 
     # --- create / lifecycle ----------------------------------------------------
 
@@ -181,10 +214,10 @@ class ReleaseInformation:
             )
 
         rcvs = [
-            self.class_information.get_repo_class_version(
-                pin["repo_class_name"], pin["version"]
+            self.class_information.get_repo_class_version(cls, version)
+            for cls, version in sorted(
+                {(pin["repo_class_name"], pin["version"]) for pin in pins}
             )
-            for pin in pins
         ]
 
         rv = ReleaseVersion(
@@ -269,12 +302,13 @@ class ReleaseInformation:
 
         # The lock is the sole authority on versions; release.json must not
         # disagree with it (SPEC0003).
-        lock_pins = {e["repo_class_name"]: e["version"] for e in entries}
-        bom_pins = pins_from_definition(release_json.get("reference_bom") or [])
+        lock_pins = {(e["repo_class_name"], e["version"]) for e in entries}
+        bom_pins = pin_set_from_definition(release_json.get("reference_bom") or [])
+        locked_classes = {cls for cls, _ in lock_pins}
         disagree = sorted(
-            f"{name} (lock {lock_pins[name]}, release.json {v})"
-            for name, v in bom_pins.items()
-            if name in lock_pins and lock_pins[name] != v
+            f"{cls} {version} (not pinned by the lock)"
+            for cls, version in bom_pins - lock_pins
+            if cls in locked_classes
         )
         if disagree:
             raise ServiceException(
@@ -336,8 +370,8 @@ class ReleaseInformation:
         for rv in self.get_release_versions(release):
             if rv.version != version:
                 continue
-            if self.pins_of(rv) != {
-                a["repo_class_name"]: a["version"] for a in artifacts
+            if self.pin_set_of(rv) != {
+                (a["repo_class_name"], a["version"]) for a in artifacts
             }:
                 raise ServiceException(
                     f"Release, {release_name}, already has version {version} with different pins."
@@ -408,24 +442,25 @@ class ReleaseInformation:
     def check_release_coverage(
         self, submitted: Union[Dict[str, str], List[Dict]]
     ) -> Dict:
-        """Compare a set of pins (``{class: version}``) or a ChangeSet
-        definition against recorded release versions.
+        """Compare a set of pins (``{class: version | [versions]}``) or a
+        ChangeSet definition against recorded release versions. ``pins`` in the
+        result is keyed ``class@version``.
 
         ``match`` is ``equal`` (identical to a verified/released version),
         ``covered`` (a subset of one, with identical versions) or ``neither``.
         ``failed`` lists failed versions whose pins equal the submitted set.
         """
         pins = (
-            submitted
+            pin_set_from_mapping(submitted)
             if isinstance(submitted, dict)
-            else pins_from_definition(submitted)
+            else pin_set_from_definition(submitted)
         )
-        per_pin: Dict[str, List[str]] = {name: [] for name in pins}
+        per_pin: Dict[str, List[str]] = {f"{c}@{v}": [] for c, v in sorted(pins)}
         equal, covering, failed = [], [], []
 
         for release in self.client.search_release_hmd_lang_deployment({}):
             for rv in self.get_release_versions(release):
-                rv_pins = self.pins_of(rv)
+                rv_pins = self.pin_set_of(rv)
                 summary = {
                     "release_name": release.release_name,
                     "version": rv.version,
@@ -437,12 +472,11 @@ class ReleaseInformation:
                     continue
                 if rv.status not in (VERIFIED, RELEASED):
                     continue
-                for name, version in pins.items():
-                    if rv_pins.get(name) == version:
-                        per_pin[name].append(rv.version)
+                for cls, version in pins & rv_pins:
+                    per_pin[f"{cls}@{version}"].append(rv.version)
                 if rv_pins == pins:
                     equal.append(summary)
-                elif all(rv_pins.get(n) == v for n, v in pins.items()):
+                elif pins <= rv_pins:
                     covering.append(summary)
 
         if equal:
