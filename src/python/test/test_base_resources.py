@@ -66,9 +66,9 @@ def test_loader_orders_parents_before_children():
     for doc in ordered:
         parent = doc.get("parent")
         if parent is not None:
-            assert (
-                _def_key(parent) in seen
-            ), f"{_def_key(doc)} emitted before its parent {_def_key(parent)}"
+            assert _def_key(parent) in seen, (
+                f"{_def_key(doc)} emitted before its parent {_def_key(parent)}"
+            )
         seen.add(_def_key(doc))
 
 

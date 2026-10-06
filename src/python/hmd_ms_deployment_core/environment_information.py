@@ -114,9 +114,9 @@ def get_current_repo_instance_deployment(
         for ri_rid in ri.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment()
         if ri_rid.current == "true"
     ]
-    assert (
-        len(current) <= 1
-    ), f'Expected at most 1 "current" RID. Found {len(current)} for RI {ri.identifier}'
+    assert len(current) <= 1, (
+        f'Expected at most 1 "current" RID. Found {len(current)} for RI {ri.identifier}'
+    )
 
     return current[0] if current else None
 
@@ -182,9 +182,7 @@ class EnvironmentInformation:
     def __init__(self, environment: Environment, client: HmdLangDeploymentClient):
         self.environment = environment
         self.nouns = defaultdict(dict)  # type: Dict[Type[Noun], Dict[str,Noun]]
-        self.relationships = defaultdict(
-            dict
-        )  # type: Dict[Type[Relationship], Dict[str,Relationship]]
+        self.relationships = defaultdict(dict)  # type: Dict[Type[Relationship], Dict[str,Relationship]]
         self.attrs_to_display = {
             RepoClass: ["repo_class_name"],
             RepoClassVersion: ["version"],
@@ -275,11 +273,7 @@ class EnvironmentInformation:
                 repo_class_version
             ),
         )
-        for (
-            rel
-        ) in (
-            repo_class_version.get_from_repo_class_version_req_repo_class_hmd_lang_deployment()
-        ):
+        for rel in repo_class_version.get_from_repo_class_version_req_repo_class_hmd_lang_deployment():
             self.cache_relationship(rel)
             self.cache_noun(self.rel_support.ref_to(rel))
 
@@ -441,9 +435,9 @@ class EnvironmentInformation:
                 repo_class_version
             )
         )
-        assert (
-            len(repo_classes) == 1
-        ), f"Multiple RepoClass's for RepoClassVersion {repo_class_version.identifier}"
+        assert len(repo_classes) == 1, (
+            f"Multiple RepoClass's for RepoClassVersion {repo_class_version.identifier}"
+        )
         repo_class = self.rel_support.ref_from(repo_classes[0])
 
         instance = self.get_repo_instance(name)
@@ -799,9 +793,9 @@ class EnvironmentInformation:
                 env_ris = self.client.get_to_environment_has_repo_instance_hmd_lang_deployment(
                     ri
                 )
-                assert (
-                    len(env_ris) == 1
-                ), f"RepoInstance {name} ({ri.identifier}) is in multiple environments."
+                assert len(env_ris) == 1, (
+                    f"RepoInstance {name} ({ri.identifier}) is in multiple environments."
+                )
                 if self.rel_support.ref_from(env_ris[0]) == self.environment:
                     self.cache_noun(ri)
                     repo_instance = ri
@@ -856,9 +850,7 @@ class EnvironmentInformation:
             self.environment
         )
         self.rel_support.pull_relationship_nouns(rels)
-        for instance in [
-            self.rel_support.ref_to(rel) for rel in rels
-        ]:  # type: RepoInstance
+        for instance in [self.rel_support.ref_to(rel) for rel in rels]:  # type: RepoInstance
             if repo_class == self.rel_support.ref_to(
                 self.client.get_from_repo_instance_isa_repo_class_hmd_lang_deployment(
                     instance
@@ -906,15 +898,13 @@ class EnvironmentInformation:
         ri: RepoInstance = self.rel_support.ref_from(
             self.client.get_to_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(
                 rid
-            )[
-                0
-            ]
+            )[0]
         )
         now_ = datetime.utcnow()
-        rels: List[
-            RepoInstanceHasRepoInstanceDeployment
-        ] = self.client.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(
-            ri
+        rels: List[RepoInstanceHasRepoInstanceDeployment] = (
+            self.client.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(
+                ri
+            )
         )
         logger.debug("RELS: %d", len(rels))
         self.rel_support.pull_relationship_nouns(rels)
@@ -1003,9 +993,9 @@ class EnvironmentInformation:
 
                 # Find the RepoInstance by name in this environment
                 repo_instance = self.get_repo_instance(parsed.instance_name)
-                assert (
-                    repo_instance is not None
-                ), f"No repo instance found for name, {parsed.instance_name} (from resource name: {resource_name_str})"
+                assert repo_instance is not None, (
+                    f"No repo instance found for name, {parsed.instance_name} (from resource name: {resource_name_str})"
+                )
 
                 # Optional: validate deployment_id if provided (for shorthand/full format)
                 if parsed.deployment_id:

@@ -171,14 +171,14 @@ class ResourceInformation:
         The storage layer does not enforce composite business ids, so the lookup
         searches a single attribute and filters the remainder in Python.
         """
-        candidates: List[
-            ResourceDefinition
-        ] = self.client.search_resource_definition_hmd_lang_deployment(
-            {
-                "attribute": "resource_namespace",
-                "operator": "=",
-                "value": resource_namespace,
-            }
+        candidates: List[ResourceDefinition] = (
+            self.client.search_resource_definition_hmd_lang_deployment(
+                {
+                    "attribute": "resource_namespace",
+                    "operator": "=",
+                    "value": resource_namespace,
+                }
+            )
         )
         matches = [
             rd
@@ -344,9 +344,7 @@ class ResourceInformation:
         role: Optional[str] = None,
     ) -> RepoClassVersionProducesResourceDefinition:
         """Declare that a RepoClassVersion produces a ResourceDefinition (deduped)."""
-        for (
-            rel
-        ) in self.client.get_from_repo_class_version_produces_resource_definition_hmd_lang_deployment(
+        for rel in self.client.get_from_repo_class_version_produces_resource_definition_hmd_lang_deployment(
             repo_class_version
         ):
             if rel.ref_to == resource_definition.identifier:
@@ -372,9 +370,7 @@ class ResourceInformation:
             raise ServiceException(
                 f"RepoClassVersion, {repo_class_version_id}, not found."
             )
-        for (
-            rel
-        ) in self.client.get_from_repo_class_version_has_resource_definition_hmd_lang_deployment(
+        for rel in self.client.get_from_repo_class_version_has_resource_definition_hmd_lang_deployment(
             rcv
         ):
             if rel.ref_to == resource_definition.identifier:
@@ -399,9 +395,7 @@ class ResourceInformation:
                 "definition 'isa' graph."
             )
         # Single inheritance (0..1): replace any existing parent link.
-        for (
-            rel
-        ) in self.client.get_from_resource_definition_isa_resource_definition_hmd_lang_deployment(
+        for rel in self.client.get_from_resource_definition_isa_resource_definition_hmd_lang_deployment(
             rd
         ):
             self.client.delete(rel)
@@ -505,9 +499,7 @@ class ResourceInformation:
         stack = [rd]
         while stack:
             current = stack.pop()
-            for (
-                rel
-            ) in self.client.get_to_resource_definition_isa_resource_definition_hmd_lang_deployment(
+            for rel in self.client.get_to_resource_definition_isa_resource_definition_hmd_lang_deployment(
                 current
             ):
                 child = self.relationship_support.ref_from(rel)
@@ -533,9 +525,7 @@ class ResourceInformation:
 
         producers: Dict[str, RepoClassVersion] = {}
         for target in targets:
-            for (
-                rel
-            ) in self.client.get_to_repo_class_version_produces_resource_definition_hmd_lang_deployment(
+            for rel in self.client.get_to_repo_class_version_produces_resource_definition_hmd_lang_deployment(
                 target
             ):
                 rcv = self.relationship_support.ref_from(rel)
@@ -610,9 +600,7 @@ class ResourceInformation:
         ``current`` deployment yet) still validates.
         """
         matched_rids: List[RepoInstanceDeployment] = []
-        for (
-            rid_rel
-        ) in self.client.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(
+        for rid_rel in self.client.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(
             repo_instance
         ):
             rid = self.relationship_support.ref_to(rid_rel)
@@ -840,9 +828,7 @@ class ResourceInformation:
             environment[0]
         ):
             repo_instance = self.relationship_support.ref_to(env_rel)
-            for (
-                rid_rel
-            ) in self.client.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(
+            for rid_rel in self.client.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(
                 repo_instance
             ):
                 if (rid_rel.current or "").lower() != "true":

@@ -38,13 +38,13 @@ class Compatible(AbstractVersionSpecEvaluator):
         self.spec = spec
         self.int_spec = spec.split(".")
         for sp in self.int_spec:
-            assert (
-                sp.isnumeric()
-            ), f"Compatible version spec invalid: {spec}. All components must be numeric."
+            assert sp.isnumeric(), (
+                f"Compatible version spec invalid: {spec}. All components must be numeric."
+            )
         self.int_spec = [int(sp) for sp in self.int_spec]
-        assert (
-            len(self.int_spec) > 1
-        ), f"Compatible version spec invalid: {spec}. Must be more than 1 component."
+        assert len(self.int_spec) > 1, (
+            f"Compatible version spec invalid: {spec}. Must be more than 1 component."
+        )
 
     def validate(self, version: str):
         int_version = [int(cmp) for cmp in version.split(".")]
@@ -62,17 +62,17 @@ class MatchExclude(AbstractVersionSpecEvaluator):
         self.symbol = "==" if self.matched else "!="
         self.int_spec = spec.split(".")
         for sp in self.int_spec[:-1]:
-            assert (
-                sp.isnumeric()
-            ), f"Compatible version spec invalid: {spec}. All components except the last must be numeric."
-        assert (
-            self.int_spec[-1].isnumeric() or self.int_spec[-1] == "*"
-        ), f'Compatible version spec invalid: {spec}. The last component must be either numeric or "*".'
+            assert sp.isnumeric(), (
+                f"Compatible version spec invalid: {spec}. All components except the last must be numeric."
+            )
+        assert self.int_spec[-1].isnumeric() or self.int_spec[-1] == "*", (
+            f'Compatible version spec invalid: {spec}. The last component must be either numeric or "*".'
+        )
 
         self.int_spec = [int(sp) if sp.isnumeric() else sp for sp in self.int_spec]
-        assert (
-            len(self.int_spec) > 1
-        ), f"Compatible version spec invalid: {spec}. Must be more than 1 component."
+        assert len(self.int_spec) > 1, (
+            f"Compatible version spec invalid: {spec}. Must be more than 1 component."
+        )
 
     def validate(self, version: str):
         int_version = [int(cmp) for cmp in version.split(".")]
@@ -106,13 +106,13 @@ class Ordered(AbstractVersionSpecEvaluator):
         if self.inclusive:
             self.symbol += "="
         self.int_spec = spec.split(".")
-        assert (
-            len(self.int_spec) == 3
-        ), f"Specifier must include three components: {spec}"
+        assert len(self.int_spec) == 3, (
+            f"Specifier must include three components: {spec}"
+        )
         for sp in self.int_spec:
-            assert (
-                sp.isnumeric()
-            ), f"Compatible version spec invalid: {spec}. All components must be numeric."
+            assert sp.isnumeric(), (
+                f"Compatible version spec invalid: {spec}. All components must be numeric."
+            )
         self.int_spec = [int(sp) for sp in self.int_spec]
 
     def operator(self, spec_cmp, ver_cmp):
@@ -183,9 +183,9 @@ class VersionSpecifier:
     @classmethod
     def validate_version_number(cls, version: str):
         for cmp in version.split("."):
-            assert (
-                cmp.isnumeric()
-            ), f"Invalid version number: {version}. All components must be numeric."
+            assert cmp.isnumeric(), (
+                f"Invalid version number: {version}. All components must be numeric."
+            )
 
     def validate(self, version: str):
         self.validate_version_number(version)
