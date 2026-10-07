@@ -61,8 +61,8 @@ def draw_puml_relationship(
     type_str = "\\n".join([getattr(relationship, attr) for attr in attributes])
     type_str = f": {type_str}" if type_str else ""
     print(
-        f"{relationship.ref_from.replace('-','_')} --> "
-        f"{relationship.ref_to.replace('-','_')}{type_str}",
+        f"{relationship.ref_from.replace('-', '_')} --> "
+        f"{relationship.ref_to.replace('-', '_')}{type_str}",
         file=destination,
     )
 
@@ -134,11 +134,13 @@ class DependencyEdges(NamedTuple):
 REPO_CLASS_VERSION_EDGES = DependencyEdges(
     RepoClassVersionReqRepoClass,
     RepoClassVersionReqResourceDefinition,
-    lambda client, rcv: client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
-        rcv
+    lambda client, rcv: (
+        client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(rcv)
     ),
-    lambda client, rcv: client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
-        rcv
+    lambda client, rcv: (
+        client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
+            rcv
+        )
     ),
 )
 
@@ -166,9 +168,7 @@ class ClassInformation:
     def _process_repo_classes(self):
         for rc in self.client.search_repo_class_hmd_lang_deployment({}):
             self.cache_noun(rc)
-            for (
-                rc_rcv
-            ) in self.client.get_from_repo_class_has_repo_class_version_hmd_lang_deployment(
+            for rc_rcv in self.client.get_from_repo_class_has_repo_class_version_hmd_lang_deployment(
                 rc
             ):
                 self.cache_relationship(rc_rcv)
@@ -187,9 +187,7 @@ class ClassInformation:
 
         # NERD0004 SPEC0008: cache resource-based dependency edges and their
         # target ResourceDefinitions alongside the class-name dependencies.
-        for (
-            rel
-        ) in self.client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
+        for rel in self.client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
             repo_class_version
         ):
             self.cache_relationship(rel)
@@ -206,9 +204,9 @@ class ClassInformation:
         rcs: List[RepoClass] = self.client.search_repo_class_hmd_lang_deployment(
             {"attribute": "repo_class_name", "operator": "=", "value": repo_class_name}
         )
-        assert (
-            len(rcs) <= 1
-        ), f"Found {len(rcs)} RepoClass's with repo_class_name {repo_class_name}. Expected 0 or 1"
+        assert len(rcs) <= 1, (
+            f"Found {len(rcs)} RepoClass's with repo_class_name {repo_class_name}. Expected 0 or 1"
+        )
         if not (len(rcs)) == 1:
             raise ServiceException(f"RepoClass, {repo_class_name}, not found.")
 
@@ -626,9 +624,9 @@ class ClassInformation:
             raise ServiceException(
                 f"No version found for {repo_class_name} : {version}."
             )
-        assert (
-            len(rcvs) == 1
-        ), f"Multiple versions found for {repo_class_name} : {version}."
+        assert len(rcvs) == 1, (
+            f"Multiple versions found for {repo_class_name} : {version}."
+        )
 
         return rcvs[0]
 

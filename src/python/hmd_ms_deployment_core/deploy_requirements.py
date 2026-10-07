@@ -335,9 +335,7 @@ class DeployRequirementEvaluator:
         """BACON spec/toolset "Consuming dependencies": the role's ``resource``
         block names ``ref``, or the bound instance's class has any version
         producing it."""
-        for (
-            rel
-        ) in self.client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
+        for rel in self.client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
             consumer_rcv
         ):
             if rel.role == role and self._is_or_isa(self.rs.ref_to(rel), ref):

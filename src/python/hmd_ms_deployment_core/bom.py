@@ -133,9 +133,9 @@ def serialize_repo_instance(ri: RepoInstance, rs: RelationshipSupport) -> Ordere
 
     data += [("instance_configuration", instance_config)]
     data = OrderedDict(data)
-    ri_ris: List[
-        RepoInstanceReqRepoInstance
-    ] = ri.get_from_repo_instance_req_repo_instance_hmd_lang_deployment()
+    ri_ris: List[RepoInstanceReqRepoInstance] = (
+        ri.get_from_repo_instance_req_repo_instance_hmd_lang_deployment()
+    )
     dependency_dict = defaultdict(list)
     for ri_ri in ri_ris:
         dependency_dict[ri_ri.role].append(rs.ref_to(ri_ri).name)

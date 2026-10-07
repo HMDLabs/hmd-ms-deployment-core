@@ -90,9 +90,9 @@ def get_valid_environment(
     )
     if not environment:
         raise ServiceException(f"Environment, {environment_type}, not found.")
-    assert (
-        len(environment) == 1
-    ), f"Expected 1 environment with type, {environment_type}. Found {len(environment)}."
+    assert len(environment) == 1, (
+        f"Expected 1 environment with type, {environment_type}. Found {len(environment)}."
+    )
 
     return environment[0]
 
@@ -129,9 +129,7 @@ def setup(service):
         # Get the environment for the updated RID and alter the current deployed instance if necessary
         rel = deploy_client.get_to_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(
             rid
-        )[
-            0
-        ]
+        )[0]
         ri = deploy_client.get_repo_instance_hmd_lang_deployment(rel.ref_from)
         rel = deploy_client.get_to_environment_has_repo_instance_hmd_lang_deployment(
             ri
@@ -684,9 +682,7 @@ def setup(service):
 
             # Retained class-name dependencies are suggestions per role.
             suggested_by_role = {}
-            for (
-                creq
-            ) in deploy_client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
+            for creq in deploy_client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
                 rcv
             ):
                 suggested_by_role[creq.role] = env_info.rel_support.ref_to(
@@ -694,9 +690,7 @@ def setup(service):
                 ).repo_class_name
 
             result = {}
-            for (
-                req
-            ) in deploy_client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
+            for req in deploy_client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
                 rcv
             ):
                 rd = env_info.rel_support.ref_to(req)
@@ -754,9 +748,9 @@ def setup(service):
                 f"No Environment with type, {environment_type}, not found."
             )
 
-        assert (
-            len(environment) == 1
-        ), f"Expected 1 environment with type, {environment_type}. Found {len(environment)}."
+        assert len(environment) == 1, (
+            f"Expected 1 environment with type, {environment_type}. Found {len(environment)}."
+        )
 
         environment = environment[0]
         env_info = EnvironmentInformation(environment, deploy_client)
@@ -1217,9 +1211,7 @@ def setup(service):
             rcv_dict = rcv.serialize(encode_blobs=False)
             deps = {}
             if include_deps:
-                for (
-                    rel
-                ) in deploy_client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
+                for rel in deploy_client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
                     rcv
                 ):
                     target_rc = rs.ref_to(rel)
@@ -1267,9 +1259,7 @@ def setup(service):
         rs.register_client(deploy_client._base_client)
         rcv_dict = rcv.serialize(encode_blobs=False)
         deps = {}
-        for (
-            rel
-        ) in deploy_client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
+        for rel in deploy_client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
             rcv
         ):
             target_rc = rs.ref_to(rel)

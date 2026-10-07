@@ -119,9 +119,9 @@ class InstanceConfigResolver:
 
             config.update(default_config)
 
-        dependencies: List[
-            RepoInstanceReqRepoInstance
-        ] = instance.get_from_repo_instance_req_repo_instance_hmd_lang_deployment()
+        dependencies: List[RepoInstanceReqRepoInstance] = (
+            instance.get_from_repo_instance_req_repo_instance_hmd_lang_deployment()
+        )
         # If dependencies not cached on entity, query the database
         if not dependencies:
             dependencies = self.client.get_from_repo_instance_req_repo_instance_hmd_lang_deployment(
@@ -190,9 +190,7 @@ class InstanceConfigResolver:
 
     def _get_next_or_deployed(self, instance: RepoInstance):
         result = None
-        rels = (
-            instance.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment()
-        )
+        rels = instance.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment()
         # If relationships not cached on entity, query the database
         if not rels:
             rels = self.client.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(
@@ -218,9 +216,7 @@ class InstanceConfigResolver:
 
     def _get_current_rid(self, instance):
         result = None
-        rels = (
-            instance.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment()
-        )
+        rels = instance.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment()
         # If relationships not cached on entity, query the database
         if not rels:
             rels = self.client.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(

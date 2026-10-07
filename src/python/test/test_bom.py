@@ -97,16 +97,19 @@ def test_environment_bom_shape_and_order(base_environment):
     assert names.index("ri3") < names.index("ri1")
 
     ri1 = [e for e in bom if e["repo_instance_name"] == "ri1"][0]
-    assert list(ri1.keys()) == [
-        "repo_instance_name",
-        "repo_class_name",
-        "repo_class_version",
-        "deployment_id",
-        "auto_deploy",  # the model default is the string "false", which is truthy -- as before
-        "status",
-        "instance_configuration",
-        "dependencies",
-    ]
+    assert (
+        list(ri1.keys())
+        == [
+            "repo_instance_name",
+            "repo_class_name",
+            "repo_class_version",
+            "deployment_id",
+            "auto_deploy",  # the model default is the string "false", which is truthy -- as before
+            "status",
+            "instance_configuration",
+            "dependencies",
+        ]
+    )
     assert ri1["repo_class_name"] == "rc1"
     assert ri1["repo_class_version"] == "0.1.1"
     assert ri1["deployment_id"] == "aaa"

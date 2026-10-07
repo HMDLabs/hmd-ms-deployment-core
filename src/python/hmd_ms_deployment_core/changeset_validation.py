@@ -114,9 +114,7 @@ def validate_changes(
             continue
 
         required_roles: List[Tuple[str, str, bool]] = []
-        for (
-            rel
-        ) in deploy_client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
+        for rel in deploy_client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
             rcv
         ):
             role = rel.role

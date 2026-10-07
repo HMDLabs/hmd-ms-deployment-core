@@ -36,11 +36,11 @@ logger = logging.getLogger(__name__)
 BUNDLE_VERSION_EDGES = DependencyEdges(
     BundleVersionReqRepoClass,
     BundleVersionReqResourceDefinition,
-    lambda client, bv: client.get_from_bundle_version_req_repo_class_hmd_lang_deployment(
-        bv
+    lambda client, bv: (
+        client.get_from_bundle_version_req_repo_class_hmd_lang_deployment(bv)
     ),
-    lambda client, bv: client.get_from_bundle_version_req_resource_definition_hmd_lang_deployment(
-        bv
+    lambda client, bv: (
+        client.get_from_bundle_version_req_resource_definition_hmd_lang_deployment(bv)
     ),
 )
 
