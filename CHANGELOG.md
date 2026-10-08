@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-08
+
+- fix: `resync_repo_class_version_dependencies` updates an existing dependency edge's `required` and `version_spec` (and a resource edge's `tag_selector`) from the manifest instead of skipping an edge that is already there, so an edited manifest reaches an already-registered version without a version bump. The stored relationship is changed and re-upserted, since a new one would get its own identifier and duplicate the edge
+
 ## 2026-10-06
 
 - feat: installed releases keep their install report (`install_report`) and the publisher's evidence and notes; `release_install_status` returns it, recomputed without writing on `?refresh=true`; retries skip settled artifacts and stop at a digest mismatch

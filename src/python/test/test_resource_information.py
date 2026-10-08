@@ -989,6 +989,71 @@ def test_resync_backfills_missing_role_dependency():
     )
 
 
+def test_resync_updates_an_existing_class_edges_required_flag_and_version_spec():
+    """An edited manifest must reach a version that is already registered:
+    resync rewrites the existing edge's attributes in place instead of leaving
+    the first registration's values, and never duplicates the edge."""
+    client, _ = make_client()
+    class_info = ClassInformation(client)
+    class_info.add_repo_version_by_name("prov", "0.1.1", {}, {})
+    cv = class_info.add_repo_version_by_name(
+        "cons",
+        "0.1.1",
+        {
+            "logging": {
+                "required": "true",
+                "repo_class_name": "prov",
+                "version_spec": "~= 0.1",
+            }
+        },
+        {},
+    )
+
+    class_info.resync_repo_class_version_dependencies(
+        "cons",
+        "0.1.1",
+        {
+            "logging": {
+                "required": "false",
+                "repo_class_name": "prov",
+                "version_spec": "~= 0.2",
+            }
+        },
+    )
+
+    edges = client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(cv)
+    assert len(edges) == 1
+    assert str(edges[0].required).lower() == "false"
+    assert edges[0].version_spec == "~= 0.2"
+
+
+def test_resync_updates_an_existing_resource_edges_required_flag():
+    client, _ = make_client()
+    ri = ResourceInformation(client)
+    _k8s_and_eks(ri)
+    class_info = ClassInformation(client)
+    cv = class_info.add_repo_version_by_name(
+        "needs-k8s",
+        "0.1.1",
+        {"cluster": {"required": "true", "resource": dict(K8S_REF)}},
+        {},
+    )
+
+    class_info.resync_repo_class_version_dependencies(
+        "needs-k8s",
+        "0.1.1",
+        {"cluster": {"required": "false", "resource": dict(K8S_REF)}},
+    )
+
+    edges = (
+        client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
+            cv
+        )
+    )
+    assert len(edges) == 1
+    assert str(edges[0].required).lower() == "false"
+
+
 def test_class_only_dependency_unchanged():
     """Backward-compat: a role with only a repo_class_name creates no resource edge."""
     client, _ = make_client()

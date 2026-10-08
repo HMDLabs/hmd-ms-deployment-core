@@ -334,8 +334,10 @@ class ClassInformation:
         not full atomicity: edges already upserted for other roles in this
         call stay committed even if one role fails.
 
-        Idempotent: an edge already present for a given (role, target) is left
-        alone rather than duplicated. The storage layer does not dedupe
+        Idempotent: an edge already present for a given (role, target) is not
+        duplicated; its ``required``/``version_spec`` (and a resource edge's
+        ``tag_selector``) are brought in line with ``dependencies``, so an edited
+        manifest reaches an already-registered version. The storage layer does not dedupe
         relationship upserts on its own (a freshly-constructed relationship
         gets its own identifier regardless of any existing edge with the same
         ref_from/ref_to/role), so this is required for
@@ -349,11 +351,11 @@ class ClassInformation:
         """
         edges = edges or REPO_CLASS_VERSION_EDGES
         existing_class_reqs = {
-            (rel.role, self._ref_to_id(rel))
+            (rel.role, self._ref_to_id(rel)): rel
             for rel in edges.class_reqs(self.client, repo_class_version)
         }
         existing_resource_reqs = {
-            (rel.role, self._ref_to_id(rel))
+            (rel.role, self._ref_to_id(rel)): rel
             for rel in edges.resource_reqs(self.client, repo_class_version)
         }
 
@@ -367,7 +369,14 @@ class ClassInformation:
                 # retained as a *suggestion* (NERD0004 SPEC0008).
                 if dep.get("repo_class") is not None:
                     ref_to = dep["repo_class"].identifier
-                    if (role, ref_to) not in existing_class_reqs:
+                    existing = existing_class_reqs.get((role, ref_to))
+                    if existing is not None:
+                        self._refresh_edge(
+                            existing,
+                            required=dep.get("required"),
+                            version_spec=dep.get("version_spec"),
+                        )
+                    else:
                         new_rel = edges.class_req_type(
                             ref_from=repo_class_version.identifier,
                             ref_to=ref_to,
@@ -402,13 +411,29 @@ class ClassInformation:
                 + "; ".join(failures)
             )
 
+    def _refresh_edge(self, rel, **attributes) -> None:
+        """Bring an existing dependency edge in line with the manifest.
+
+        The storage layer gives a freshly built relationship its own identifier,
+        so changing an edge means changing the stored one and upserting that.
+        An attribute the manifest does not state is left as it was.
+        """
+        changed = False
+        for name, value in attributes.items():
+            if value is not None and getattr(rel, name, None) != value:
+                setattr(rel, name, value)
+                changed = True
+        if changed:
+            self.client.upsert(rel)
+            self.cache_relationship(rel)
+
     def _add_resource_dependency(
         self,
         repo_class_version: RepoClassVersion,
         role: str,
         dep: Dict,
         resource: Dict,
-        existing_resource_reqs: Optional[set] = None,
+        existing_resource_reqs: Optional[Dict] = None,
         edges: Optional["DependencyEdges"] = None,
     ) -> None:
         """Create the authoritative ``repo_class_version_req_resource_definition``
@@ -452,14 +477,14 @@ class ClassInformation:
                 resource_namespace, resource_definition_name, version
             )
 
-        if (
-            existing_resource_reqs is not None
-            and (
-                role,
-                rd.identifier,
+        existing = (existing_resource_reqs or {}).get((role, rd.identifier))
+        if existing is not None:
+            self._refresh_edge(
+                existing,
+                required=dep.get("required"),
+                version_spec=resource.get("version_spec"),
+                tag_selector=resource.get("tag_selector"),
             )
-            in existing_resource_reqs
-        ):
             return
 
         res_rel = edges.resource_req_type(
