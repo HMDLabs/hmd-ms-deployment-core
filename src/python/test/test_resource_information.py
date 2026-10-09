@@ -320,6 +320,13 @@ def test_serialize_resources_for_deployment_returns_rich_shape(base_environment)
                 "resource_namespace": "aws",
                 "resource_definition_name": "eks-cluster",
                 "version": "0.1.0",
+                "ancestry": [
+                    {
+                        "resource_namespace": "aws",
+                        "resource_definition_name": "eks-cluster",
+                        "version": "0.1.0",
+                    }
+                ],
             },
             "output": {"cluster_name": "prod-eks"},
             "tags": [{"key": "env", "value": "prod"}],
@@ -1338,3 +1345,43 @@ def test_apply_time_validation_rejects_when_neither_resource_nor_class_matches()
             dependencies={"cluster": [plain_inst]},
             status="DEPLOYED",
         )
+
+
+def test_serialize_resource_carries_root_first_ancestry(base_environment):
+    """A consumer depending on a supertype must be able to recognize a subtype
+    Resource from its serialized shape alone, so serialize_resource emits the
+    full isa chain (root first, ending with the concrete definition)."""
+    client, _ = base_environment
+    ri = ResourceInformation(client)
+    _seed_k8s_and_eks(ri)
+    rid = _rid_from_base_environment(client)
+    ri.submit_resources(
+        rid,
+        [
+            {
+                "resource_name": "prod-eks",
+                "resource_definition": {
+                    "resource_namespace": "aws",
+                    "resource_definition_name": "eks-cluster",
+                    "version": "0.1.0",
+                },
+                "output": {"cluster_name": "prod-eks", "cluster_arn": "arn:x"},
+            }
+        ],
+    )
+
+    [serialized] = ri.serialize_resources_for_deployment(rid)
+    definition = serialized["resource_definition"]
+    assert definition["resource_definition_name"] == "eks-cluster"
+    assert definition["ancestry"] == [
+        {
+            "resource_namespace": "kubernetes",
+            "resource_definition_name": "kubernetes-cluster",
+            "version": "0.1.0",
+        },
+        {
+            "resource_namespace": "aws",
+            "resource_definition_name": "eks-cluster",
+            "version": "0.1.0",
+        },
+    ]

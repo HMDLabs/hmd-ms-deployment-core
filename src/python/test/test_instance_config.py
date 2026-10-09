@@ -15,6 +15,8 @@ VPC_DEF = {
     "resource_definition_name": "vpc",
     "version": "0.1.0",
 }
+# serialize_resource adds the root-first isa chain; vpc here has no parent.
+SERIALIZED_VPC_DEF = {**VPC_DEF, "ancestry": [VPC_DEF]}
 
 
 def _instance(client, name):
@@ -70,7 +72,7 @@ def test_attach_bakes_resources_for_deployed_dependency(base_environment):
     assert role_cfg["hmd_resources"] == [
         {
             "resource_name": "base-vpc",
-            "resource_definition": VPC_DEF,
+            "resource_definition": SERIALIZED_VPC_DEF,
             "output": {"vpc_id": "vpc-123", "public_subnet_ids": ["s1", "s2"]},
             "tags": [{"key": "env", "value": "dev"}],
         }
@@ -109,7 +111,7 @@ def test_get_instance_config_attaches_baked_resources_to_role(base_environment):
     role_cfg = config["dependencies"]["rc1-rc2"]
 
     assert role_cfg["hmd_resources"][0]["output"] == {"vpc_id": "vpc-abc"}
-    assert role_cfg["hmd_resources"][0]["resource_definition"] == VPC_DEF
+    assert role_cfg["hmd_resources"][0]["resource_definition"] == SERIALIZED_VPC_DEF
     assert "hmd_resource_ref" not in role_cfg
 
 

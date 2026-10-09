@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-09
+
+- feat: base catalog ships `connection.neuronsphere.io/connection` (isa `credential`, adds optional `conn_id` and `secret_keys`) so engine-specific connection subtypes can parent it
+- feat: serialized Resources (`hmd_resources`, `get_deployment_resources`) carry `resource_definition.ancestry`, the root-first `isa` chain, so consumers depending on a supertype can match a subtype Resource
+
 ## 2026-10-06
 
 - feat: installed releases keep their install report (`install_report`) and the publisher's evidence and notes; `release_install_status` returns it, recomputed without writing on `?refresh=true`; retries skip settled artifacts and stop at a digest mismatch

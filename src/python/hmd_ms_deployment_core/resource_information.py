@@ -753,12 +753,23 @@ class ResourceInformation:
         """Serialize a single Resource to the consumer-facing dict shape.
 
         ``{resource_name, resource_definition: {resource_namespace,
-        resource_definition_name, version}, output, tags: [{key, value}]}`` --
-        the shape a consumer uses to match a produced resource by its Resource
-        Definition and read its ``output``. Shared by
+        resource_definition_name, version, ancestry}, output, tags: [{key, value}]}``
+        -- the shape a consumer uses to match a produced resource by its Resource
+        Definition and read its ``output``. ``ancestry`` is the definition's
+        ``isa`` chain (root first, ending with the definition itself) so a
+        consumer that depends on a supertype can recognize a subtype Resource
+        without calling back into the service. Shared by
         ``serialize_resources_for_deployment`` and the dev-config resolver so both
         emit an identical shape.
         """
+
+        def _ref(rd: ResourceDefinition) -> Dict:
+            return {
+                "resource_namespace": rd.resource_namespace,
+                "resource_definition_name": rd.resource_definition_name,
+                "version": rd.version,
+            }
+
         definition = None
         isa_rels = (
             self.client.get_from_resource_isa_resource_definition_hmd_lang_deployment(
@@ -768,9 +779,8 @@ class ResourceInformation:
         if isa_rels:
             rd = self.relationship_support.ref_to(isa_rels[0])
             definition = {
-                "resource_namespace": rd.resource_namespace,
-                "resource_definition_name": rd.resource_definition_name,
-                "version": rd.version,
+                **_ref(rd),
+                "ancestry": [_ref(ancestor) for ancestor in self.get_ancestry(rd)],
             }
         return {
             "resource_name": resource.resource_name,

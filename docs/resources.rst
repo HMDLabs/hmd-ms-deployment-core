@@ -249,6 +249,32 @@ Get Deployment Resources
 
 Lists the ``Resource`` records recorded for a ``RepoInstanceDeployment`` identifier.
 
+Each entry has the same shape that is baked into a consumer's dependency role as
+``hmd_resources``:
+
+.. code-block:: json
+
+    {
+      "resource_name": "airflow-trino",
+      "resource_definition": {
+        "resource_namespace": "connection.neuronsphere.io",
+        "resource_definition_name": "trino-connection",
+        "version": "0.1.0",
+        "ancestry": [
+          {"resource_namespace": "credentials.neuronsphere.io", "resource_definition_name": "credential", "version": "0.1.0"},
+          {"resource_namespace": "connection.neuronsphere.io", "resource_definition_name": "connection", "version": "0.1.0"},
+          {"resource_namespace": "connection.neuronsphere.io", "resource_definition_name": "trino-connection", "version": "0.1.0"}
+        ]
+      },
+      "output": {"conn_type": "trino", "host": "...", "secret_name": "...", "secret_backend": "ParameterStore"},
+      "tags": [{"key": "env", "value": "dev"}]
+    }
+
+``ancestry`` is the definition's ``isa`` chain, root first, ending with the definition
+itself. A consumer that depends on a supertype (here ``connection``) and is wired to a
+subtype producer matches on it without calling back into the service -- see
+``hmd_cli_tools.cdktf_tools.dependency_resource_output`` / ``connection_output``.
+
 Find Resources by Tag
 ++++++++++++++++++++++++++++
 
@@ -564,6 +590,9 @@ The catalog (all at ``version: 0.1.0``):
    * - ``credentials.neuronsphere.io/credential``
      -
      - ``hmd-inf-credentials``
+   * - ``connection.neuronsphere.io/connection``
+     - ``credentials.neuronsphere.io/credential``
+     - ``hmd-inf-connection`` (generic); engine subtypes such as ``trino-connection``
    * - ``application.neuronsphere.io/application``
      -
      - ``hmd-app-*``, helm ``hmd-inf-*`` apps
