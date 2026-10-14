@@ -1,0 +1,31 @@
+# Base ResourceDefinition: one service's own database and login on a shared
+# database instance -- what hmd-database-account creates through hmd-ms-dbaccount.
+# A subtype of database.neuronsphere.io/database, deliberately not of postgres:
+# a request for a postgres *instance* (hmd-database-account's own
+# database-instance role) must not match account producers, and a request for
+# an account must not match the instance, whose Resource carries the admin
+# credential and no database_name.
+resource_namespace: database.neuronsphere.io
+resource_definition_name: database-account
+version: 0.1.0
+parent:
+  resource_namespace: database.neuronsphere.io
+  resource_definition_name: database
+  version: 0.1.0
+description: >-
+  A per-service database and its credential, created on a shared database
+  instance. Consumers read the connection details from the secret.
+output_schema:
+  type: object
+  required:
+    - database_name
+    - secret_name
+  properties:
+    database_name:
+      type: string
+      description: The name of the service's logical database.
+    secret_name:
+      type: string
+      description: >-
+        The name of the secret holding the account's username, password, host
+        and port.

@@ -23,7 +23,7 @@ from hmd_ms_deployment_core.resource_information import (
 from hmd_schema_loader import DefaultLoader
 
 
-EXPECTED_BASE_COUNT = 25
+EXPECTED_BASE_COUNT = 26
 
 
 def make_client():
@@ -417,3 +417,55 @@ def test_subtype_producer_satisfies_base_requirement():
     }
     names = {i.name for i in ri.find_satisfying_instances(env_info, base_ref)}
     assert names == {"my-eks"}
+
+
+# --------------------------------------------------------------------------- #
+# database-account: a per-service database and login (hmd-database-account)
+# --------------------------------------------------------------------------- #
+
+
+def _seeded_account_definition():
+    client, _ = make_client()
+    ri = ResourceInformation(client)
+    ri.seed_base_resource_definitions()
+    rd = ri.find_resource_definition(
+        "database.neuronsphere.io", "database-account", "0.1.0"
+    )
+    assert rd is not None
+    return ri, rd
+
+
+def test_database_account_accepts_a_full_account():
+    ri, rd = _seeded_account_definition()
+
+    ri._validate_output(
+        {"database_name": "deployment_gui", "secret_name": "pg_x_deployment_gui"}, rd
+    )
+
+
+@pytest.mark.parametrize("missing", ["database_name", "secret_name"])
+def test_database_account_requires_name_and_secret(missing):
+    """An account without both is not one a consumer can connect with."""
+    ri, rd = _seeded_account_definition()
+    output = {"database_name": "deployment_gui", "secret_name": "pg_x_deployment_gui"}
+    del output[missing]
+
+    with pytest.raises(Exception, match=missing):
+        ri._validate_output(output, rd)
+
+
+def test_database_account_is_not_a_postgres():
+    """A request for a postgres instance (hmd-database-account's own
+    database-instance role) must not start matching account producers."""
+    docs = {_def_key(d): d for d in load_base_resource_documents()}
+    account = docs[
+        _def_key(
+            {
+                "resource_namespace": "database.neuronsphere.io",
+                "resource_definition_name": "database-account",
+                "version": "0.1.0",
+            }
+        )
+    ]
+
+    assert account["parent"]["resource_definition_name"] == "database"

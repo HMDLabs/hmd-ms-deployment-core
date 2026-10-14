@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-14
+
+- feat: base ResourceDefinition `database.neuronsphere.io/database-account` (a service's own database and login on a shared instance; parent `database`, not `postgres`), requiring `database_name` and `secret_name`. Consumers that asked for `postgres` bound to the environment's shared instance and got its admin credential
+
 ## 2026-10-09
 
 - feat: catalogue routes for the GUI (NERD009/NERD011): `list_bundles`, `list_bundle_versions/<name>`, `list_releases` (kind, newest version per status, newest installed) and `list_release_versions/<name>`; `get_release_version` and `release_version_to_dict` now also return `notes`, `install_report` and (on get) the releases a platform release `includes`
