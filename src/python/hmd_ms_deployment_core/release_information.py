@@ -154,6 +154,80 @@ class ReleaseInformation:
             raise ServiceException(f"Release, {release_name}, has no matching version.")
         return sort_versions(versions, lambda rv: rv.version)[0]
 
+    def included_versions(self, rv: ReleaseVersion) -> List[Tuple[str, ReleaseVersion]]:
+        """The release versions a platform release includes, as
+        ``(release_name, version)`` pairs."""
+        included = []
+        for rel in self.client.get_from_release_version_includes_release_version_hmd_lang_deployment(
+            rv
+        ):
+            target = self.rs.ref_to(rel)
+            included.append((self.release_name_of(target), target))
+        return sorted(included, key=lambda pair: pair[0])
+
+    @staticmethod
+    def is_installed_version(rv: ReleaseVersion) -> Optional[bool]:
+        """``None`` until an install report exists, then whether it is complete."""
+        report = rv.install_report
+        return bool(report.get("installed")) if report else None
+
+    def release_version_row(self, release_name: str, rv: ReleaseVersion) -> Dict:
+        """``release_version_to_dict`` plus what the detail page needs: the
+        releases it includes."""
+        return {
+            **release_version_to_dict(release_name, rv),
+            "includes": [
+                {"release_name": name, "version": included.version}
+                for name, included in self.included_versions(rv)
+            ],
+        }
+
+    def list_release_versions(self, release_name: str) -> List[Dict]:
+        """Every version of a release, newest first, with its status and
+        whether it is installed (``None`` if never reported)."""
+        versions = sort_versions(
+            self.get_release_versions(self.get_release(release_name)),
+            lambda rv: rv.version,
+        )
+        return [
+            {
+                "release_name": release_name,
+                "version": rv.version,
+                "status": rv.status,
+                "installed": self.is_installed_version(rv),
+            }
+            for rv in versions
+        ]
+
+    def list_releases(self) -> List[Dict]:
+        """The catalogue: one row per release with its newest version per
+        status and its newest installed version. ``kind`` is ``platform`` when
+        any version includes other releases, else ``bundle``."""
+        rows = []
+        for release in sorted(
+            self.client.search_release_hmd_lang_deployment({}),
+            key=lambda r: r.release_name,
+        ):
+            versions = sort_versions(
+                self.get_release_versions(release), lambda rv: rv.version
+            )
+            newest_by_status: Dict[str, str] = {}
+            for rv in versions:
+                newest_by_status.setdefault(rv.status, rv.version)
+            installed = [rv for rv in versions if self.is_installed_version(rv)]
+            rows.append(
+                {
+                    "release_name": release.release_name,
+                    "kind": "platform"
+                    if any(self.included_versions(rv) for rv in versions)
+                    else "bundle",
+                    "versions": [rv.version for rv in versions],
+                    "newest_by_status": newest_by_status,
+                    "newest_installed": installed[0].version if installed else None,
+                }
+            )
+        return rows
+
     def release_name_of(self, rv: ReleaseVersion) -> str:
         rels = self.client.get_to_release_has_release_version_hmd_lang_deployment(rv)
         return self.rs.ref_from(rels[0]).release_name
@@ -582,4 +656,6 @@ def release_version_to_dict(release_name: str, rv: ReleaseVersion) -> Dict:
         "attestation": rv.attestation,
         "evidence": rv.evidence,
         "discovery": rv.discovery,
+        "notes": rv.notes,
+        "install_report": rv.install_report,
     }

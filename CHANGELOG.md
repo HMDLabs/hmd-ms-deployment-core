@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-09
+
+- feat: catalogue routes for the GUI (NERD009/NERD011): `list_bundles`, `list_bundle_versions/<name>`, `list_releases` (kind, newest version per status, newest installed) and `list_release_versions/<name>`; `get_release_version` and `release_version_to_dict` now also return `notes`, `install_report` and (on get) the releases a platform release `includes`
+
 ## 2026-10-08
 
 - fix: `resync_repo_class_version_dependencies` updates an existing dependency edge's `required` and `version_spec` (and a resource edge's `tag_selector`) from the manifest instead of skipping an edge that is already there, so an edited manifest reaches an already-registered version without a version bump. The stored relationship is changed and re-upserted, since a new one would get its own identifier and duplicate the edge

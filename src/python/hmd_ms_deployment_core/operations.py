@@ -31,7 +31,7 @@ from .class_information import ClassInformation
 from .discovery_index import get_or_build_index, search_index
 from .environment_information import EnvironmentInformation
 from .instance_config import InstanceConfigResolver, with_details
-from .release_information import ReleaseInformation, release_version_to_dict
+from .release_information import ReleaseInformation
 from .resource_information import ResourceInformation, seed_base_catalog_best_effort
 from .version import VersionSpecifier, sort_versions
 
@@ -928,6 +928,50 @@ def setup(service):
         )
 
     @service.operation(
+        rest_path="/apiop/list_bundles",
+        rest_methods=["GET"],
+        args={},
+    )
+    def list_bundles(evt, ctx):
+        """The Bundle catalogue: ``{"bundle_name", "versions" (newest first),
+        "latest_version", "summary"}`` per bundle."""
+        return BundleInformation(_get_deploy_client(evt, ctx)).list_bundles()
+
+    @service.operation(
+        rest_path="/apiop/list_bundle_versions/<args_name>",
+        rest_methods=["GET"],
+        args={"name": "string"},
+    )
+    def list_bundle_versions(evt, ctx):
+        """Every version of one Bundle as full rows, newest first."""
+        return BundleInformation(_get_deploy_client(evt, ctx)).list_bundle_versions(
+            evt["args"]["name"]
+        )
+
+    @service.operation(
+        rest_path="/apiop/list_releases",
+        rest_methods=["GET"],
+        args={},
+    )
+    def list_releases(evt, ctx):
+        """The Release catalogue: per release its ``kind`` (``bundle`` /
+        ``platform``), ``versions`` (newest first), ``newest_by_status`` and
+        ``newest_installed``."""
+        return ReleaseInformation(_get_deploy_client(evt, ctx)).list_releases()
+
+    @service.operation(
+        rest_path="/apiop/list_release_versions/<args_name>",
+        rest_methods=["GET"],
+        args={"name": "string"},
+    )
+    def list_release_versions(evt, ctx):
+        """Every version of one Release, newest first: ``version``, ``status``
+        and ``installed`` (``null`` until an install report exists)."""
+        return ReleaseInformation(_get_deploy_client(evt, ctx)).list_release_versions(
+            evt["args"]["name"]
+        )
+
+    @service.operation(
         rest_path="/apiop/upsert_bundle_version",
         rest_methods=["POST"],
         args={"payload": "json"},
@@ -1042,7 +1086,7 @@ def setup(service):
             query.get("version"),
             statuses.split(",") if statuses else None,
         )
-        return release_version_to_dict(name, rv)
+        return ReleaseInformation(deploy_client).release_version_row(name, rv)
 
     @service.operation(
         rest_path="/apiop/check_release_coverage",

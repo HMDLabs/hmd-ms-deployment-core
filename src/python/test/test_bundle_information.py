@@ -158,3 +158,40 @@ def test_add_bundle_versions_reports_per_bundle():
         ("bad", "error"),
     ]
     assert results[0]["version"] == "0.1.3"
+
+
+# --- catalog listing (GUI) ---------------------------------------------------
+
+
+def test_list_bundles_summarises_each_bundle_newest_version_first():
+    info = BundleInformation(_new_client())
+    info.add_bundle_version(_telemetry("0.1.4"))
+    info.add_bundle_version(_telemetry("0.2.0"))
+    info.add_bundle_version(_telemetry("0.1.10"))
+
+    listed = info.list_bundles()
+
+    assert [b["bundle_name"] for b in listed] == ["telemetry"]
+    assert listed[0]["versions"] == ["0.2.0", "0.1.10", "0.1.4"]
+    assert listed[0]["latest_version"] == "0.2.0"
+    assert listed[0]["summary"] == "OTel collector, ClickHouse and HyperDX."
+
+
+def test_list_bundles_is_empty_without_bundles():
+    assert BundleInformation(_new_client()).list_bundles() == []
+
+
+def test_list_bundle_versions_returns_full_rows_newest_first():
+    info = BundleInformation(_new_client())
+    info.add_bundle_version(_telemetry("0.1.4"))
+    info.add_bundle_version(_telemetry("0.2.0"))
+
+    rows = info.list_bundle_versions("telemetry")
+
+    assert [r["version"] for r in rows] == ["0.2.0", "0.1.4"]
+    assert set(rows[0]["roles"]) == {"otel-collector", "eks-alb"}
+
+
+def test_list_bundle_versions_of_unknown_bundle_is_an_error():
+    with pytest.raises(ServiceException):
+        BundleInformation(_new_client()).list_bundle_versions("nope")

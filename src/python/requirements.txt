@@ -316,7 +316,7 @@ hmd-lib-auth~=0.1.129
     #   hmd-base-service
     #   hmd-graphql-client
     #   hmd-lib-librarian-client
-hmd-lib-librarian-client~=0.1.118
+hmd-lib-librarian-client~=0.1.120
     # via -r requirements.in
 hmd-lib-telemetry~=0.1.67
     # via hmd-base-service

@@ -400,3 +400,90 @@ def test_status_of_a_release_never_installed():
     info = ReleaseInformation(client)
     rv = info.create_release_version("telemetry", _pins(OTEL), version="0.1.0")
     assert info.install_status("telemetry", "0.1.0")["installed"] is None
+
+
+# --- catalog listing (GUI) ---------------------------------------------------
+
+
+def _include(client, platform, member):
+    from hmd_lang_deployment.release_version_includes_release_version import (
+        ReleaseVersionIncludesReleaseVersion,
+    )
+
+    client.upsert(
+        ReleaseVersionIncludesReleaseVersion(
+            ref_from=platform.identifier, ref_to=member.identifier
+        )
+    )
+
+
+def test_list_releases_reports_newest_version_per_status():
+    info = ReleaseInformation(_registered(OTEL, CH))
+    v1 = info.create_release_version("telemetry", _pins(OTEL), version="0.1.0")
+    for status in ("verifying", "verified", "released"):
+        info.transition(v1, status)
+    v2 = info.create_release_version("telemetry", _pins(OTEL, CH), version="0.2.0")
+    for status in ("verifying", "verified"):
+        info.transition(v2, status)
+
+    [row] = info.list_releases()
+
+    assert row["release_name"] == "telemetry"
+    assert row["kind"] == "bundle"
+    assert row["newest_by_status"] == {"released": "0.1.0", "verified": "0.2.0"}
+    assert row["newest_installed"] is None
+    assert row["versions"] == ["0.2.0", "0.1.0"]
+
+
+def test_list_releases_marks_a_release_that_includes_others_as_platform():
+    client = _registered(OTEL, CH)
+    info = ReleaseInformation(client)
+    member = info.create_release_version("telemetry", _pins(OTEL), version="0.1.0")
+    platform = info.create_release_version("core", _pins(CH), version="0.1.0")
+    _include(client, platform, member)
+
+    kinds = {r["release_name"]: r["kind"] for r in info.list_releases()}
+
+    assert kinds == {"telemetry": "bundle", "core": "platform"}
+
+
+def test_list_releases_reports_newest_installed_version():
+    client = _registered(OTEL)
+    info = ReleaseInformation(client)
+    old = info.create_release_version("telemetry", _pins(OTEL), version="0.1.0")
+    info.create_release_version("telemetry", _pins(OTEL), version="0.2.0")
+    old.install_report = {"installed": True, "entries": []}
+    client.upsert(old)
+
+    [row] = info.list_releases()
+
+    assert row["newest_installed"] == "0.1.0"
+
+
+def test_list_release_versions_returns_rows_with_status_and_install_state():
+    info = ReleaseInformation(_registered(OTEL))
+    info.create_release_version("telemetry", _pins(OTEL), version="0.1.0")
+    info.create_release_version("telemetry", _pins(OTEL), version="0.2.0")
+
+    rows = info.list_release_versions("telemetry")
+
+    assert [(r["version"], r["status"], r["installed"]) for r in rows] == [
+        ("0.2.0", "candidate", None),
+        ("0.1.0", "candidate", None),
+    ]
+
+
+def test_release_version_row_exposes_notes_install_report_and_includes():
+    client = _registered(OTEL, CH)
+    info = ReleaseInformation(client)
+    member = info.create_release_version("telemetry", _pins(OTEL), version="0.1.0")
+    platform = info.create_release_version("core", _pins(CH), version="0.1.0")
+    platform.notes = [{"repo_class_name": CH[0], "from": "0.2.6", "to": "0.2.7"}]
+    client.upsert(platform)
+    _include(client, platform, member)
+
+    row = info.release_version_row("core", platform)
+
+    assert row["notes"] == platform.notes
+    assert row["install_report"] is None
+    assert row["includes"] == [{"release_name": "telemetry", "version": "0.1.0"}]

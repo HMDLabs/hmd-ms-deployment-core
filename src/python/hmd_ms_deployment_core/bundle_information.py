@@ -112,6 +112,37 @@ class BundleInformation:
             )
         return sort_versions(versions, lambda bv: bv.version)[0]
 
+    def list_bundle_versions(self, bundle_name: str) -> List[Dict]:
+        """Every version of a bundle as full rows, newest first."""
+        versions = sort_versions(
+            self.get_bundle_versions(self.get_bundle(bundle_name)),
+            lambda bv: bv.version,
+        )
+        return [bundle_version_to_dict(bundle_name, bv) for bv in versions]
+
+    def list_bundles(self) -> List[Dict]:
+        """The catalogue: one summary row per bundle, by name."""
+        rows = []
+        for bundle in sorted(
+            self.client.search_bundle_hmd_lang_deployment({}),
+            key=lambda b: b.bundle_name,
+        ):
+            versions = sort_versions(
+                self.get_bundle_versions(bundle), lambda bv: bv.version
+            )
+            newest = versions[0] if versions else None
+            rows.append(
+                {
+                    "bundle_name": bundle.bundle_name,
+                    "versions": [bv.version for bv in versions],
+                    "latest_version": newest.version if newest else None,
+                    "summary": ((newest.discovery or {}).get("summary"))
+                    if newest
+                    else None,
+                }
+            )
+        return rows
+
     def add_bundle_version(
         self,
         payload: Dict,

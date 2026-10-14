@@ -669,6 +669,25 @@ Test 10.4 - Check Release Coverage
     ${untested}=    Invoke Custom Operation    path=check_release_coverage    data=&{release_coverage_untested_payload}    method=POST
     Should Be Equal    ${untested}[match]    neither
 
+Test 10.5 - List Bundles And Releases
+    [Documentation]    the catalogue routes behind the GUI list what 10.1 and 10.3 registered
+    [Tags]    bundle    release    registry
+
+    ${bundles}=    Invoke Custom Operation    path=list_bundles    data=&{EMPTY}    method=GET
+    ${names}=    Evaluate    [b["bundle_name"] for b in $bundles]
+    Should Contain    ${names}    ${BUNDLE_NAME}
+    ${versions}=    Invoke Custom Operation    path=list_bundle_versions/${BUNDLE_NAME}    data=&{EMPTY}    method=GET
+    ${all}=    Evaluate    [v["version"] for v in $versions]
+    Should Contain    ${all}    0.1.0
+    Dictionary Should Contain Key    ${versions}[0][roles]    database
+
+    ${releases}=    Invoke Custom Operation    path=list_releases    data=&{EMPTY}    method=GET
+    ${release_names}=    Evaluate    [r["release_name"] for r in $releases]
+    Should Contain    ${release_names}    ${RELEASE_NAME}
+    ${release_versions}=    Invoke Custom Operation    path=list_release_versions/${RELEASE_NAME}    data=&{EMPTY}    method=GET
+    ${listed}=    Evaluate    [v["version"] for v in $release_versions]
+    Should Contain    ${listed}    0.1.0
+
 *** Keywords ***
 Register Repo Class Version Tolerating Existing
     [Documentation]    add_repo_class_version, treating "already has version" as success: the
