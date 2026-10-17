@@ -54,7 +54,7 @@ Architecture Views Are Saved By Name
     invoke custom operation    path=upsert_architecture_view    data=&{view}    method=POST
     invoke custom operation    path=upsert_architecture_view    data=&{view_updated}    method=POST
     ${all}=    invoke custom operation    path=list_architecture_views    data=&{EMPTY}    method=GET
-    ${ours}=    evaluate    [v for v in $all if v['view_name'] == $VIEW_NAME]
+    ${ours}=    evaluate    (lambda views, name: [v for v in views if v['view_name'] == name])($all, $VIEW_NAME)
     length should be    ${ours}    1
     should be equal    ${ours[0]['template_version_spec']}    ~=0.2
     should be equal    ${ours[0]['roots']}    ${{[$CONSUMER_CLASS]}}
@@ -69,14 +69,14 @@ Architecture Model Of A Class
     FOR    ${expected}    IN    ${CONSUMER_NODE}    ${PRODUCER_NODE}    ${API_NODE}    ${FUNCTION_NODE}    ${TABLE_NODE}    ${BUCKET_NODE}
         list should contain value    ${ids}    ${expected}
     END
-    ${api}=    evaluate    next(n for n in $model['nodes'] if n['id'] == $API_NODE)
+    ${api}=    evaluate    (lambda nodes, id_: next(n for n in nodes if n['id'] == id_))($model['nodes'], $API_NODE)
     should be equal    ${api['resource_definition']}    aws.neuronsphere.io/api-gateway-rest-api@0.1.0
     should be equal    ${api['group']}    ${CONSUMER_NODE}
     Model Should Have Edge    ${model}    ${CONSUMER_NODE}    ${PRODUCER_NODE}    depends_on
     Model Should Have Edge    ${model}    ${API_NODE}    ${FUNCTION_NODE}    flows_to
     Model Should Have Edge    ${model}    ${FUNCTION_NODE}    ${TABLE_NODE}    flows_to
     Model Should Have Edge    ${model}    ${FUNCTION_NODE}    ${BUCKET_NODE}    flows_to
-    ${role}=    evaluate    next(e['role'] for e in $model['edges'] if e['kind'] == 'depends_on' and e['from'] == $CONSUMER_NODE)
+    ${role}=    evaluate    (lambda edges, src: next(e['role'] for e in edges if e['kind'] == 'depends_on' and e['from'] == src))($model['edges'], $CONSUMER_NODE)
     should be equal    ${role}    lib-repo
     # Nodes and edges are sorted by id, so equal scopes give byte-identical models.
     ${sorted}=    evaluate    $ids == sorted($ids)
@@ -86,17 +86,17 @@ Architecture Model Of A Class
 Ancestry Should Be
     [Arguments]    ${name}    @{expected}
     ${all}=    invoke custom operation    path=list_resource_definitions    data=&{EMPTY}    method=GET
-    ${rd}=    evaluate    next(d for d in $all if d['resource_namespace'] == 'aws.neuronsphere.io' and d['resource_definition_name'] == $name)
+    ${rd}=    evaluate    (lambda defs, name: next(d for d in defs if d['resource_namespace'] == 'aws.neuronsphere.io' and d['resource_definition_name'] == name))($all, $name)
     ${ancestry}=    invoke custom operation    path=get_resource_definition_ancestry/${rd['identifier']}    data=&{EMPTY}    method=GET
     ${names}=    evaluate    [a['resource_definition_name'] for a in $ancestry]
     should be equal    ${names}    ${expected}
 
 Templates Named
     [Arguments]    ${templates}    ${name}
-    ${ours}=    evaluate    [t for t in $templates if t['template_name'] == $name]
+    ${ours}=    evaluate    (lambda templates, name: [t for t in templates if t['template_name'] == name])($templates, $name)
     RETURN    ${ours}
 
 Model Should Have Edge
     [Arguments]    ${model}    ${from}    ${to}    ${kind}
-    ${found}=    evaluate    any(e['from'] == $from and e['to'] == $to and e['kind'] == $kind for e in $model['edges'])
+    ${found}=    evaluate    (lambda edges, src, dst, kind: any(e['from'] == src and e['to'] == dst and e['kind'] == kind for e in edges))($model['edges'], $from, $to, $kind)
     should be true    ${found}    no ${kind} edge ${from} -> ${to}
