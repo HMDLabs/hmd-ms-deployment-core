@@ -1,0 +1,17 @@
+# ResourceDefinition (NERD036): an AWS SQS queue, such as the retry queue and
+# dead-letter queue LibrarianHmdCdkTfStack creates when retry_config is set.
+resource_namespace: aws.neuronsphere.io
+resource_definition_name: sqs-queue
+version: 0.1.0
+parent:
+  resource_namespace: messaging.neuronsphere.io
+  resource_definition_name: queue
+  version: 0.1.0
+description: >-
+  An AWS SQS queue.
+output_schema:
+  type: object
+  properties:
+    dead_letter_queue_url:
+      type: string
+      description: The queue's dead-letter queue, when it has one.

@@ -1,0 +1,19 @@
+# Base ResourceDefinition (NERD0004, NERD036): a key-value or document table. A
+# subtype of database, beside postgres and graph.
+resource_namespace: database.neuronsphere.io
+resource_definition_name: key-value-table
+version: 0.1.0
+parent:
+  resource_namespace: database.neuronsphere.io
+  resource_definition_name: database
+  version: 0.1.0
+description: >-
+  A key-value or document table a service stores its entities in.
+output_schema:
+  type: object
+  required:
+    - table_name
+  properties:
+    table_name:
+      type: string
+      description: The name of the table.

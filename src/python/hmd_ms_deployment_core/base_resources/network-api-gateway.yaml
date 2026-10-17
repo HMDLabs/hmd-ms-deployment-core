@@ -1,0 +1,18 @@
+# Base ResourceDefinition (NERD0004, NERD036): an HTTP API front door that routes
+# requests to a backend. A root, not a subtype of network: a requirement for "a
+# network to attach to" must never be satisfied by an API gateway.
+resource_namespace: network.neuronsphere.io
+resource_definition_name: api-gateway
+version: 0.1.0
+description: >-
+  An HTTP API endpoint that authenticates and routes requests to a backend
+  function or service.
+output_schema:
+  type: object
+  properties:
+    invoke_url:
+      type: string
+      description: The base URL clients call.
+    custom_domain:
+      type: string
+      description: The custom domain name mapped to the API, when one is.

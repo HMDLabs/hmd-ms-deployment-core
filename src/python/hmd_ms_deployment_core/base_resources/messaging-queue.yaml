@@ -1,0 +1,17 @@
+# Base ResourceDefinition (NERD0004, NERD036): a message queue.
+resource_namespace: messaging.neuronsphere.io
+resource_definition_name: queue
+version: 0.1.0
+description: >-
+  A durable message queue that decouples a producer from its consumers.
+output_schema:
+  type: object
+  required:
+    - queue_url
+  properties:
+    queue_url:
+      type: string
+      description: The URL producers send to.
+    arn:
+      type: string
+      description: The provider identifier of the queue.

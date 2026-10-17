@@ -1,0 +1,19 @@
+# Base ResourceDefinition (NERD0004, NERD036): a unit of on-demand compute that
+# runs a service's code. A root, not a subtype of compute-node: a requirement for
+# node capacity must never be satisfied by a function.
+resource_namespace: compute.neuronsphere.io
+resource_definition_name: function
+version: 0.1.0
+description: >-
+  A serverless function that runs a service's code on demand.
+output_schema:
+  type: object
+  required:
+    - function_name
+  properties:
+    function_name:
+      type: string
+      description: The name of the function.
+    arn:
+      type: string
+      description: The provider identifier of the function.

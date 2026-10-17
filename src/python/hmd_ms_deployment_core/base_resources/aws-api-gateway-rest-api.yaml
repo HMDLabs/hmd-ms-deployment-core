@@ -1,0 +1,25 @@
+# ResourceDefinition (NERD036): an AWS API Gateway REST API, as the shared CDKTF
+# factory (hmd-lib-cdktf-factories ApiGateway.lambda_api_full) creates one for
+# every microservice. In the catalog rather than in one repo because every
+# service built on ServiceCdkTfStack produces one.
+resource_namespace: aws.neuronsphere.io
+resource_definition_name: api-gateway-rest-api
+version: 0.1.0
+parent:
+  resource_namespace: network.neuronsphere.io
+  resource_definition_name: api-gateway
+  version: 0.1.0
+description: >-
+  An AWS API Gateway REST API with a {proxy+} resource, a stage and, outside
+  local environments, a custom domain.
+output_schema:
+  type: object
+  required:
+    - rest_api_id
+  properties:
+    rest_api_id:
+      type: string
+      description: The REST API identifier.
+    stage_name:
+      type: string
+      description: The deployed stage.

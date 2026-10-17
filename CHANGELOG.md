@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-17
+
+- feat: base ResourceDefinitions for what a microservice creates for itself (NERD036): neutral roots `network.neuronsphere.io/api-gateway`, `compute.neuronsphere.io/function`, `messaging.neuronsphere.io/queue` and `database.neuronsphere.io/key-value-table` (parent `database`), and the AWS types the shared CDKTF factory produces, `aws.neuronsphere.io/api-gateway-rest-api`, `lambda-function`, `dynamodb-table`, `sqs-queue` and `s3-bucket` (parent `storage.neuronsphere.io/object-store`)
+
 ## 2026-10-14
 
 - feat: base ResourceDefinition `database.neuronsphere.io/database-account` (a service's own database and login on a shared instance; parent `database`, not `postgres`), requiring `database_name` and `secret_name`. Consumers that asked for `postgres` bound to the environment's shared instance and got its admin credential

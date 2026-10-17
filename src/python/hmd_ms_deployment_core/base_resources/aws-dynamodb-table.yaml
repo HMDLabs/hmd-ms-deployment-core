@@ -1,0 +1,21 @@
+# ResourceDefinition (NERD036): an AWS DynamoDB table. A microservice's entity
+# table is named after the service's base name and created by the service itself
+# at first use (hmd-entity-storage's dynamodb engine), not by CDKTF.
+resource_namespace: aws.neuronsphere.io
+resource_definition_name: dynamodb-table
+version: 0.1.0
+parent:
+  resource_namespace: database.neuronsphere.io
+  resource_definition_name: key-value-table
+  version: 0.1.0
+description: >-
+  An AWS DynamoDB table.
+output_schema:
+  type: object
+  properties:
+    arn:
+      type: string
+      description: The table ARN.
+    point_in_time_recovery:
+      type: boolean
+      description: Whether point-in-time recovery is enabled.
