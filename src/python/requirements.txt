@@ -421,6 +421,8 @@ jeepney==0.9.0
     #   hmd-lib-auth
     #   hmd-lib-librarian-client
     #   secretstorage
+jinja2==3.1.6
+    # via -r requirements.in
 jmespath==0.10.0
     # via
     #   boto3
@@ -476,6 +478,7 @@ markupsafe==3.0.2
     #   hmd-entity-storage
     #   hmd-graphql-client
     #   hmd-lib-librarian-client
+    #   jinja2
     #   mako
 more-itertools==10.7.0
     # via

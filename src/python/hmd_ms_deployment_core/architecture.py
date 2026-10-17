@@ -42,6 +42,7 @@ _TEMPLATE_FIELDS = (
     "description",
     "descriptor",
     "artifact_location",
+    "files",
 )
 
 _VIEW_FIELDS = (

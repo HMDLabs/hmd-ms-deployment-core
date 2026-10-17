@@ -25,7 +25,7 @@ from .bom import (
     find_class_instances,
 )
 from ._artifact_presence_hook import get_artifact_presence
-from . import architecture
+from . import architecture, architecture_render
 from .bundle_information import BundleInformation, bundle_version_to_dict
 from .changeset_validation import validate_changes
 from .class_information import ClassInformation
@@ -1521,4 +1521,36 @@ def setup(service):
         """
         return architecture.build_architecture_model(
             _get_deploy_client(evt, ctx), evt["args"]["payload"]
+        )
+
+    @service.operation(
+        rest_path="/apiop/render_architecture",
+        rest_methods=["POST"],
+        args={"payload": "json"},
+    )
+    def render_architecture(evt, ctx):
+        """Render a scope with a registered template (NERD036 SPEC006)::
+
+          {"roots": ["hmd-ms-device-lib"], "depth": 1,
+           "template_name": "aws-customer", "template_version_spec": "~=0.1",
+           "params": {"audience": "customer"}}
+
+        A ``model`` in the payload is rendered instead of building one.
+        Returns ``{template_name, template_version, model, outputs}``.
+        """
+        return architecture_render.render_architecture(
+            _get_deploy_client(evt, ctx), evt["args"]["payload"]
+        )
+
+    @service.operation(
+        rest_path="/apiop/render_architecture_view/<args_name>",
+        rest_methods=["GET"],
+        args={"name": "string"},
+    )
+    def render_architecture_view(evt, ctx):
+        """Render a saved view, as a documentation build fetches it (NERD036
+        SPEC008): ``outputs`` plus ``model_digest``, ``template_version``,
+        ``etag`` and ``rendered_at``."""
+        return architecture_render.render_architecture_view(
+            _get_deploy_client(evt, ctx), evt["args"]["name"]
         )

@@ -82,6 +82,34 @@ Architecture Model Of A Class
     ${sorted}=    evaluate    $ids == sorted($ids)
     should be true    ${sorted}
 
+Render With A Registered Template
+    [Documentation]    The newest registered version satisfying the spec renders the model;
+    ...    its files come from the registration, its variables from the params.
+    invoke custom operation    path=register_rendering_template    data=&{register_template_030}    method=POST
+    ${rendered}=    invoke custom operation    path=render_architecture    data=&{render_request}    method=POST
+    should be equal    ${rendered['template_version']}    0.3.0
+    should be equal    ${rendered['model']['schema']}    architecture.neuronsphere.io/v1
+    ${puml}=    get from dictionary    ${rendered['outputs']}    architecture.puml
+    should start with    ${puml}    @startuml
+    should contain    ${puml}    title Robot render
+    should contain    ${puml}    rectangle "${CONSUMER_CLASS}"
+    should contain    ${puml}    rectangle "function"
+    should contain    ${puml}    ' audience: customer
+
+Render A Saved View
+    [Documentation]    Documentation fetches a view by name; the same scope renders the same
+    ...    model, so its digest is stable between fetches.
+    invoke custom operation    path=upsert_architecture_view    data=&{render_view}    method=POST
+    ${first}=    invoke custom operation    path=render_architecture_view/${RENDER_VIEW_NAME}    data=&{EMPTY}    method=GET
+    ${second}=    invoke custom operation    path=render_architecture_view/${RENDER_VIEW_NAME}    data=&{EMPTY}    method=GET
+    should be equal    ${first['view_name']}    ${RENDER_VIEW_NAME}
+    should be equal    ${first['template_version']}    0.3.0
+    should match regexp    ${first['model_digest']}    ^[0-9a-f]{64}$
+    should be equal    ${first['model_digest']}    ${second['model_digest']}
+    should be equal    ${first['etag']}    ${second['etag']}
+    dictionary should contain key    ${first}    rendered_at
+    should start with    ${first['outputs']['architecture.puml']}    @startuml
+
 *** Keywords ***
 Ancestry Should Be
     [Arguments]    ${name}    @{expected}

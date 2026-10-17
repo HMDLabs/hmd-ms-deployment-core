@@ -118,3 +118,36 @@ API_NODE = f"res:{CONSUMER_CLASS}/api"
 FUNCTION_NODE = f"res:{CONSUMER_CLASS}/function"
 TABLE_NODE = f"res:{CONSUMER_CLASS}/entity-table"
 BUCKET_NODE = f"res:{PRODUCER_CLASS}/bucket"
+
+# A template that renders: one PlantUML file over the model's nodes and flows.
+_PUML = """@startuml
+title {{ vars.title | default('Architecture') }}
+{% for n in nodes %}rectangle "{{ n.label }}" as {{ n.id | replace(':', '_') | replace('/', '_') | replace('-', '_') }}
+{% endfor %}{% for e in edges if e.kind in ('flows_to', 'depends_on') %}{{ e['from'] | replace(':', '_') | replace('/', '_') | replace('-', '_') }} --> {{ e.to | replace(':', '_') | replace('/', '_') | replace('-', '_') }}
+{% endfor %}' audience: {{ vars.audience }}
+@enduml
+"""
+
+register_template_030 = {
+    **_template("0.3.0"),
+    "files": {"architecture.puml.j2": _PUML},
+}
+
+render_request = {
+    "roots": [CONSUMER_CLASS],
+    "depth": 1,
+    "template_name": TEMPLATE_NAME,
+    "template_version_spec": "~=0.3",
+    "params": {"audience": "customer", "title": "Robot render"},
+}
+
+RENDER_VIEW_NAME = f"arch-render-view-{_RUN_ID}"
+
+render_view = {
+    "view_name": RENDER_VIEW_NAME,
+    "roots": [CONSUMER_CLASS],
+    "depth": 1,
+    "template_name": TEMPLATE_NAME,
+    "template_version_spec": "~=0.3",
+    "params": {"audience": "customer"},
+}
