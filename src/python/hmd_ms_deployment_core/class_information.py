@@ -223,6 +223,7 @@ class ClassInformation:
         discovery: Optional[Dict] = None,
         toolset: Optional[Dict] = None,
         deploy_commands: Optional[List] = None,
+        resources: Optional[Dict] = None,
     ) -> RepoClassVersion:
         """Add a new RepoClassVersion to a RepoClass.
 
@@ -263,6 +264,10 @@ class ClassInformation:
         :param deploy_commands: BACON ``deploy.commands``, so a toolset deploy
             requirement's ``applies_to.tool`` can be matched.
         :type deploy_commands: Optional[List]
+        :param resources: BACON ``deploy.resources`` as declared, names and
+            ``metadata`` included (NERD036): the produces edges keep one role per
+            resource definition, which an architecture model cannot draw from.
+        :type resources: Optional[Dict]
         :returns: The newly created RepoClassVersion object
         :rtype: RepoClassVersion
         """
@@ -285,6 +290,7 @@ class ClassInformation:
             discovery=discovery,
             toolset=toolset,
             deploy_commands=deploy_commands,
+            resources=resources,
         )
         self.client.upsert(new_version)
 
@@ -509,6 +515,7 @@ class ClassInformation:
         discovery: Optional[Dict] = None,
         toolset: Optional[Dict] = None,
         deploy_commands: Optional[List] = None,
+        resources: Optional[Dict] = None,
     ) -> RepoClassVersion:
         """Add a new RepoClassVersion to a RepoClass.
 
@@ -568,6 +575,7 @@ class ClassInformation:
             discovery,
             toolset,
             deploy_commands,
+            resources,
         )
 
     def _resolve_dependency_classes(self, dependencies: Dict) -> None:
@@ -607,7 +615,11 @@ class ClassInformation:
                 )
 
     def resync_repo_class_version_dependencies(
-        self, repo_class_name: str, version: str, dependencies: Dict
+        self,
+        repo_class_name: str,
+        version: str,
+        dependencies: Dict,
+        resources: Optional[Dict] = None,
     ) -> RepoClassVersion:
         """Re-wire an EXISTING RepoClassVersion's dependency edges from a
         (possibly updated) ``dependencies`` block, without creating a new
@@ -625,12 +637,18 @@ class ClassInformation:
         :param version: The existing version to resync.
         :param dependencies: The manifest ``deploy.dependencies`` block (by
             ``repo_class_name``, mirroring ``add_repo_version_by_name``).
+        :param resources: The manifest ``deploy.resources`` block. When given,
+            it replaces what the version holds, so a declaration added to or
+            removed from the manifest shows in the architecture model (NERD036).
         :returns: The existing RepoClassVersion.
         """
         repo_class_version = self.get_repo_class_version(repo_class_name, version)
         dependencies = copy.deepcopy(dependencies)
         self._resolve_dependency_classes(dependencies)
         self._wire_dependencies(repo_class_version, dependencies)
+        if resources is not None and repo_class_version.resources != resources:
+            repo_class_version.resources = resources
+            self.client.upsert(repo_class_version)
         return repo_class_version
 
     def get_repo_class_version(self, repo_class_name: str, version: str):

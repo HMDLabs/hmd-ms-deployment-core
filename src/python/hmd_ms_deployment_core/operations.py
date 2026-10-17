@@ -25,6 +25,7 @@ from .bom import (
     find_class_instances,
 )
 from ._artifact_presence_hook import get_artifact_presence
+from . import architecture
 from .bundle_information import BundleInformation, bundle_version_to_dict
 from .changeset_validation import validate_changes
 from .class_information import ClassInformation
@@ -204,6 +205,8 @@ def setup(service):
         dependencies = payload.get("dependencies", {})
         default_configuration = payload.get("default_configuration", {})
         discovery = payload.get("discovery", {})
+        # NERD036: deploy.resources as declared, for the architecture model.
+        resources = payload.get("resources")
 
         # find the specified repo-class
         repo_class_name = payload["repo_class_name"]
@@ -221,6 +224,7 @@ def setup(service):
             default_configuration=default_configuration,
             version_notes=version_notes,
             discovery=discovery,
+            resources=resources,
         )
 
         # NERD0005: a new class version is a structural (topology) change, so the
@@ -269,6 +273,7 @@ def setup(service):
             repo_class_name=payload["repo_class_name"],
             version=payload["version"],
             dependencies=payload.get("dependencies", {}),
+            resources=payload.get("resources"),
         )
 
         # NERD0005: this can add dependency edges to an existing version, so
@@ -1432,3 +1437,88 @@ def setup(service):
             "kind": kind,
             "repo_class_name": repo_class_name,
         }
+
+    # ------------------------------------------------------------------ #
+    # NERD036 (hmd-cli-neuronsphere): architecture views
+    # ------------------------------------------------------------------ #
+
+    @service.operation(
+        rest_path="/apiop/register_rendering_template",
+        rest_methods=["POST"],
+        args={"payload": "json"},
+    )
+    def register_rendering_template(evt, ctx):
+        """Register one version of a rendering template (NERD036 SPEC004).
+
+        Called by a template repo instance's deploy. Registering a name and
+        version again replaces that registration::
+
+          {
+            "template_name": "aws-customer",
+            "version": "0.1.3",
+            "title": "...", "description": "...",
+            "descriptor": {"requires_schema": "...", "outputs": [...], ...},
+            "artifact_location": "hmd-tmpl-arch-aws-customer@0.1.3:template",
+            "repo_instance_id": "<optional: the deploying instance>"
+          }
+        """
+        return architecture.register_rendering_template(
+            _get_deploy_client(evt, ctx), evt["args"]["payload"]
+        )
+
+    @service.operation(
+        rest_path="/apiop/list_rendering_templates",
+        rest_methods=["GET"],
+        args={},
+    )
+    def list_rendering_templates(evt, ctx):
+        """Every registered template version, ordered by name then version."""
+        return architecture.list_rendering_templates(_get_deploy_client(evt, ctx))
+
+    @service.operation(
+        rest_path="/apiop/get_rendering_template/<args_name>/<args_version>",
+        rest_methods=["GET"],
+        args={"name": "string", "version": "string"},
+    )
+    def get_rendering_template(evt, ctx):
+        """One registered template version, with its descriptor."""
+        return architecture.get_rendering_template(
+            _get_deploy_client(evt, ctx), evt["args"]["name"], evt["args"]["version"]
+        )
+
+    @service.operation(
+        rest_path="/apiop/upsert_architecture_view",
+        rest_methods=["POST"],
+        args={"payload": "json"},
+    )
+    def upsert_architecture_view(evt, ctx):
+        """Save a named architecture view (NERD036 SPEC005); saving a name
+        again updates it."""
+        return architecture.upsert_architecture_view(
+            _get_deploy_client(evt, ctx), evt["args"]["payload"]
+        )
+
+    @service.operation(
+        rest_path="/apiop/list_architecture_views",
+        rest_methods=["GET"],
+        args={},
+    )
+    def list_architecture_views(evt, ctx):
+        """Every saved architecture view, ordered by name."""
+        return architecture.list_architecture_views(_get_deploy_client(evt, ctx))
+
+    @service.operation(
+        rest_path="/apiop/get_architecture_model",
+        rest_methods=["POST"],
+        args={"payload": "json"},
+    )
+    def get_architecture_model(evt, ctx):
+        """The ``architecture.neuronsphere.io/v1`` model of a scope (NERD036
+        SPEC001, SPEC006)::
+
+          {"roots": ["hmd-ms-device-lib"], "depth": 1,
+           "include": [], "exclude": ["hmd-inf-datadog-lambdas"]}
+        """
+        return architecture.build_architecture_model(
+            _get_deploy_client(evt, ctx), evt["args"]["payload"]
+        )
