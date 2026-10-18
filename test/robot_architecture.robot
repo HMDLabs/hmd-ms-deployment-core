@@ -110,7 +110,75 @@ Render A Saved View
     dictionary should contain key    ${first}    rendered_at
     should start with    ${first['outputs']['architecture.puml']}    @startuml
 
+The Model Names Its Root Nodes
+    ${model}=    invoke custom operation    path=get_architecture_model    data=&{model_request}    method=POST
+    should be equal    ${model['scope']['root_nodes']}    ${{[$CONSUMER_NODE]}}
+
+Environment Model Shows Deployed Instances
+    [Documentation]    With an environment the owners are instances: each runs a class version,
+    ...    its declarations are grouped under it, its bindings are the depends_on edges,
+    ...    and dep:lib-repo lands on the bound bucket instance's bucket.
+    Deploy The Overlay Fixture
+    ${model}=    invoke custom operation    path=get_architecture_model    data=&{instance_model_request}    method=POST
+    should be equal    ${model['scope']['environment']}    ${ENV_NAME}
+    should be equal    ${model['scope']['root_nodes']}    ${{[$LIBRARIAN_INSTANCE]}}
+    ${librarian}=    Node    ${model}    ${LIBRARIAN_INSTANCE}
+    should be equal    ${librarian['kind']}    instance
+    should be equal    ${librarian['label']}    librarian
+    should be equal    ${librarian['repo_class']}    ${CONSUMER_CLASS}
+    should be equal    ${librarian['version']}    0.1.0
+    should be equal    ${librarian['attributes']['status']}    DEPLOYED
+    ${api}=    Node    ${model}    ${INST_API_NODE}
+    should be equal    ${api['group']}    ${LIBRARIAN_INSTANCE}
+    ${ids}=    evaluate    [n['id'] for n in $model['nodes']]
+    should not contain    ${ids}    ${CONSUMER_NODE}
+    Model Should Have Edge    ${model}    ${LIBRARIAN_INSTANCE}    ${BUCKET_INSTANCE}    depends_on
+    Model Should Have Edge    ${model}    ${INST_API_NODE}    ${INST_FUNCTION_NODE}    flows_to
+    Model Should Have Edge    ${model}    ${INST_FUNCTION_NODE}    ${INST_BUCKET_NODE}    flows_to
+
+Produced Resources Overlay Their Declarations
+    [Documentation]    A record of a definition one declaration names attaches to it by name;
+    ...    any other record is a resource of its own. Outputs never enter the model.
+    ${model}=    invoke custom operation    path=get_architecture_model    data=&{instance_model_request}    method=POST
+    ${bucket}=    Node    ${model}    ${INST_BUCKET_NODE}
+    should be equal    ${bucket['attributes']['resource_name']}    ${BUCKET_RESOURCE_NAME}
+    ${export}=    Node    ${model}    ${INST_EXPORT_NODE}
+    should be equal    ${export['group']}    ${LIBRARIAN_INSTANCE}
+    should be equal    ${export['resource_definition']}    aws.neuronsphere.io/s3-bucket@0.1.0
+    Model Should Have Edge    ${model}    ${LIBRARIAN_INSTANCE}    ${INST_EXPORT_NODE}    produces
+    ${text}=    evaluate    json.dumps($model)    modules=json
+    should not contain    ${text}    not-in-the-model
+
+A Class Root Stands For Its Instances There
+    ${model}=    invoke custom operation    path=get_architecture_model    data=&{class_root_model_request}    method=POST
+    should be equal    ${model['scope']['root_nodes']}    ${{[$LIBRARIAN_INSTANCE]}}
+
+A Class Root Not Deployed There Is Reported
+    invoke custom operation    path=add_repo_class_version    data=&{add_unused}    method=POST
+    ${model}=    invoke custom operation    path=get_architecture_model    data=&{undeployed_model_request}    method=POST
+    should be equal    ${model['scope']['root_nodes']}    ${{["rc:" + $UNUSED_CLASS]}}
+    ${codes}=    evaluate    [f['code'] for f in $model['findings']]
+    list should contain value    ${codes}    not-deployed
+
 *** Keywords ***
+Deploy The Overlay Fixture
+    [Documentation]    An environment holding a bucket instance and a librarian bound to it, each
+    ...    with the resources its deployment reported. Registered, not deployed.
+    ${env}=    create an entity    hmd_lang_deployment.environment    ${environment}
+    upsert an entity    ${env}
+    ${bucket}=    invoke custom operation    path=register_deployed_instance    data=&{register_bucket_instance}    method=POST
+    ${librarian}=    invoke custom operation    path=register_deployed_instance    data=&{register_librarian_instance}    method=POST
+    ${submit}=    create dictionary    repo_instance_deployment_id=${bucket['repo_instance_deployment_id']}    resources=${bucket_resources}
+    invoke custom operation    path=submit_resources    data=${submit}    method=POST
+    ${submit}=    create dictionary    repo_instance_deployment_id=${librarian['repo_instance_deployment_id']}    resources=${librarian_resources}
+    invoke custom operation    path=submit_resources    data=${submit}    method=POST
+
+Node
+    [Arguments]    ${model}    ${node_id}
+    ${node}=    evaluate    (lambda nodes, id_: next((n for n in nodes if n['id'] == id_), None))($model['nodes'], $node_id)
+    should not be equal    ${node}    ${None}    no node ${node_id}
+    RETURN    ${node}
+
 Ancestry Should Be
     [Arguments]    ${name}    @{expected}
     ${all}=    invoke custom operation    path=list_resource_definitions    data=&{EMPTY}    method=GET

@@ -151,3 +151,67 @@ render_view = {
     "template_version_spec": "~=0.3",
     "params": {"audience": "customer"},
 }
+
+# --------------------------------------------------------------------------- #
+# The environment overlay: what is deployed, not what could be.
+# --------------------------------------------------------------------------- #
+
+ENV_NAME = f"arch-env-{_RUN_ID}"
+UNUSED_CLASS = f"arch-unused-{_RUN_ID}"
+
+environment = {"type": ENV_NAME, "account_number": "000000000000", "hmd_region": "reg1"}
+
+add_unused = {
+    "repo_class_name": UNUSED_CLASS,
+    "version": "0.1.0",
+    "dependencies": {},
+    "default_configuration": {},
+}
+
+register_bucket_instance = {
+    "environment": ENV_NAME,
+    "repo_class_name": PRODUCER_CLASS,
+    "version": "0.1.0",
+    "instance_name": "lib-bucket",
+    "deployment_id": ENV_NAME,
+}
+
+register_librarian_instance = {
+    "environment": ENV_NAME,
+    "repo_class_name": CONSUMER_CLASS,
+    "version": "0.1.0",
+    "instance_name": "librarian",
+    "deployment_id": ENV_NAME,
+    "dependencies": {"lib-repo": "lib-bucket"},
+}
+
+BUCKET_RESOURCE_NAME = f"robot-lib-bucket-{_RUN_ID}"
+EXPORT_RESOURCE_NAME = f"robot-export-{_RUN_ID}"
+
+# What each deployment reports. The bucket's record matches its one
+# declaration; the librarian's export bucket matches none of its declarations.
+bucket_resources = [
+    {
+        "resource_name": BUCKET_RESOURCE_NAME,
+        "resource_definition": _aws("s3-bucket"),
+        "output": {"bucket_name": BUCKET_RESOURCE_NAME, "secret_access_key": "not-in-the-model"},
+    }
+]
+librarian_resources = [
+    {
+        "resource_name": EXPORT_RESOURCE_NAME,
+        "resource_definition": _aws("s3-bucket"),
+        "output": {"bucket_name": EXPORT_RESOURCE_NAME},
+    }
+]
+
+instance_model_request = {"roots": ["instance:librarian"], "depth": 1, "environment": ENV_NAME}
+class_root_model_request = {"roots": [CONSUMER_CLASS], "depth": 1, "environment": ENV_NAME}
+undeployed_model_request = {"roots": [UNUSED_CLASS], "depth": 1, "environment": ENV_NAME}
+
+LIBRARIAN_INSTANCE = f"inst:{ENV_NAME}/librarian"
+BUCKET_INSTANCE = f"inst:{ENV_NAME}/lib-bucket"
+INST_API_NODE = f"res:{ENV_NAME}/librarian/api"
+INST_FUNCTION_NODE = f"res:{ENV_NAME}/librarian/function"
+INST_BUCKET_NODE = f"res:{ENV_NAME}/lib-bucket/bucket"
+INST_EXPORT_NODE = f"res:{ENV_NAME}/librarian/{EXPORT_RESOURCE_NAME}"

@@ -23,11 +23,19 @@ from hmd_lang_deployment.architecture_view import ArchitectureView
 from hmd_lang_deployment.hmd_lang_deployment_client import HmdLangDeploymentClient
 from hmd_lang_deployment.rendering_template import RenderingTemplate
 from hmd_lang_deployment.repo_class_version import RepoClassVersion
+from hmd_lang_deployment.repo_instance import RepoInstance
+from hmd_lang_deployment.repo_instance_deployment import RepoInstanceDeployment
 from hmd_lang_deployment.repo_instance_provides_rendering_template import (
     RepoInstanceProvidesRenderingTemplate,
 )
 
+from . import DEPLOY_NEXT
+from .bom import active_repo_instances
 from .class_information import ClassInformation, build_relationship_support
+from .environment_information import (
+    EnvironmentInformation,
+    get_current_repo_instance_deployment,
+)
 from .resource_information import ResourceInformation, version_matches
 from .version import sort_versions
 
@@ -304,12 +312,16 @@ class ModelBuilder:
                     f"{name} is not registered, so its resources are unknown.",
                 )
             else:
-                self._add_resources(name, rcv)
+                self._add_resources(name, node_id, rcv)
         return node_id
 
-    def _add_resources(self, name: str, rcv: RepoClassVersion) -> None:
+    def _add_resources(
+        self, owner: str, owner_node: str, rcv: RepoClassVersion
+    ) -> None:
+        """``owner`` names the resources (``res:<owner>/<declaration>``) and
+        ``owner_node`` groups them: a class, or an instance in an environment."""
         for decl_name, declaration in sorted((rcv.resources or {}).items()):
-            node_id = f"res:{name}/{decl_name}"
+            node_id = f"res:{owner}/{decl_name}"
             namespace = declaration.get("resource_namespace", "")
             self.nodes[node_id] = {
                 "id": node_id,
@@ -317,7 +329,7 @@ class ModelBuilder:
                 "label": decl_name,
                 "resource_definition": _definition_ref(declaration),
                 "provider": namespace.split(".")[0] if namespace else None,
-                "group": f"rc:{name}",
+                "group": owner_node,
                 "attributes": {
                     k: v
                     for k, v in declaration.items()
@@ -325,7 +337,7 @@ class ModelBuilder:
                 },
             }
             produces = declaration.get("produces", True)
-            self._edge(f"rc:{name}", node_id, "produces" if produces else "consumes")
+            self._edge(owner_node, node_id, "produces" if produces else "consumes")
 
     def _dependencies(
         self, name: str, rcv: RepoClassVersion
@@ -392,17 +404,20 @@ class ModelBuilder:
                 )
         return out
 
-    def _flows(self, name: str, rcv: RepoClassVersion) -> None:
-        """``flows_to`` edges from each declaration's ``metadata.connects_to``."""
-        roles = self._roles.get(name, {})
+    def _flows(
+        self, name: str, owner: str, rcv: RepoClassVersion, roles: Dict[str, str]
+    ) -> None:
+        """``flows_to`` edges from each declaration's ``metadata.connects_to``.
+
+        ``roles`` maps each filled role to the node filling it."""
         for decl_name, declaration in sorted((rcv.resources or {}).items()):
-            src = f"res:{name}/{decl_name}"
+            src = f"res:{owner}/{decl_name}"
             for target in (declaration.get("metadata") or {}).get("connects_to") or []:
                 if target.startswith("dep:"):
                     role = target[len("dep:") :]
                     dst = self._role_target(name, role, roles.get(role))
                 else:
-                    dst = f"res:{name}/{target}"
+                    dst = f"res:{owner}/{target}"
                     if dst not in self.nodes:
                         self._finding(
                             "unknown-flow-target",
@@ -414,11 +429,11 @@ class ModelBuilder:
                     self._edge(src, dst, "flows_to")
 
     def _role_target(
-        self, name: str, role: str, target_class: Optional[str]
+        self, name: str, role: str, target_node: Optional[str]
     ) -> Optional[str]:
-        """The node a ``dep:<role>`` flow lands on: the filling class's one
-        produced resource when it declares exactly one, else the class itself."""
-        if target_class is None:
+        """The node a ``dep:<role>`` flow lands on: the filling owner's one
+        produced resource when it has exactly one, else the owner itself."""
+        if target_node is None:
             self._finding(
                 "unknown-flow-role",
                 name,
@@ -428,13 +443,13 @@ class ModelBuilder:
         produced = [
             node_id
             for node_id, node in self.nodes.items()
-            if node.get("group") == f"rc:{target_class}"
+            if node.get("group") == target_node
             and node["kind"] == "resource"
-            and (f"rc:{target_class}", node_id, "produces", None) in self.edges
+            and (target_node, node_id, "produces", None) in self.edges
         ]
         if len(produced) == 1:
             return produced[0]
-        return f"rc:{target_class}"
+        return target_node
 
     def build(
         self,
@@ -481,17 +496,37 @@ class ModelBuilder:
                 queue.append((target, hops + 1))
 
         for name, rcv in sorted(visited.items()):
-            self._flows(name, rcv)
+            roles = {r: f"rc:{t}" for r, t in self._roles.get(name, {}).items()}
+            self._flows(name, name, rcv, roles)
 
+        return self._model(
+            roots,
+            max_depth,
+            include,
+            excluded,
+            environment=None,
+            root_nodes=[f"rc:{r}" for r in roots if r not in excluded],
+        )
+
+    def _model(
+        self,
+        roots: List[str],
+        depth: int,
+        include: Optional[List[str]],
+        excluded: set,
+        environment: Optional[str],
+        root_nodes: List[str],
+    ) -> Dict:
         return {
             "schema": MODEL_SCHEMA,
             "scope": {
                 "roots": list(roots),
-                "depth": max_depth,
+                "root_nodes": root_nodes,
+                "depth": depth,
                 "include": list(include or []),
                 "exclude": sorted(excluded),
                 "source": "control-plane",
-                "environment": None,
+                "environment": environment,
             },
             "nodes": [self.nodes[k] for k in sorted(self.nodes)],
             "edges": [
@@ -504,13 +539,257 @@ class ModelBuilder:
         }
 
 
+class EnvironmentModelBuilder(ModelBuilder):
+    """Builds the model of what an environment runs (SPEC006): instances own
+    the resources, bindings are the dependencies, and the Resource records each
+    deployment reported name the declarations they realise."""
+
+    def __init__(self, client: HmdLangDeploymentClient, environment_type: str):
+        super().__init__(client)
+        environments = client.search_environment_hmd_lang_deployment(
+            {"attribute": "type", "operator": "=", "value": environment_type}
+        )
+        if not environments:
+            raise ServiceException(f"Environment, {environment_type}, not found.")
+        self.environment = environment_type
+        self.env_info = EnvironmentInformation(environments[0], client)
+        self.instances = {ri.name: ri for ri in active_repo_instances(self.env_info)}
+
+    def _instance_id(self, name: str) -> str:
+        return f"inst:{self.environment}/{name}"
+
+    def _deployment(self, ri: RepoInstance) -> Optional[RepoInstanceDeployment]:
+        """The current deployment, or the pending one of an instance never deployed."""
+        current = get_current_repo_instance_deployment(ri, self.rs)
+        if current is not None:
+            return self.rs.ref_to(current)
+        for rel in (
+            ri.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment()
+        ):
+            rid = self.rs.ref_to(rel)
+            if rid is not None and rid.status == DEPLOY_NEXT:
+                return rid
+        return None
+
+    def _class_name(self, ri: RepoInstance) -> Optional[str]:
+        for rel in ri.get_from_repo_instance_isa_repo_class_hmd_lang_deployment():
+            rc = self.rs.ref_to(rel)
+            if rc is not None:
+                return rc.repo_class_name
+        return None
+
+    def _version(
+        self, rid: Optional[RepoInstanceDeployment]
+    ) -> Optional[RepoClassVersion]:
+        if rid is None:
+            return None
+        for rel in rid.get_from_repo_instance_deployment_has_repo_class_version_hmd_lang_deployment():
+            rcv = self.rs.ref_to(rel)
+            if rcv is not None:
+                return rcv
+        return None
+
+    def _declared_roles(self, rcv: RepoClassVersion) -> Dict[str, bool]:
+        """Each role the version declares, and whether it is required."""
+        roles: Dict[str, bool] = {}
+        for (
+            rel
+        ) in self.client.get_from_repo_class_version_req_repo_class_hmd_lang_deployment(
+            rcv
+        ):
+            roles[rel.role] = str(rel.required).lower() != "false"
+        for rel in self.client.get_from_repo_class_version_req_resource_definition_hmd_lang_deployment(
+            rcv
+        ):
+            roles[rel.role] = str(rel.required).lower() != "false"
+        return roles
+
+    def _bindings(self, ri: RepoInstance) -> List[Tuple[str, RepoInstance]]:
+        out = []
+        for rel in ri.get_from_repo_instance_req_repo_instance_hmd_lang_deployment():
+            target = self.rs.ref_to(rel)
+            if target is not None:
+                out.append((rel.role, target))
+        return sorted(out, key=lambda b: (b[0], b[1].name))
+
+    def _add_instance(self, ri: RepoInstance) -> Optional[RepoClassVersion]:
+        node_id = self._instance_id(ri.name)
+        rid = self._deployment(ri)
+        rcv = self._version(rid)
+        if node_id in self.nodes:
+            return rcv
+        self.nodes[node_id] = {
+            "id": node_id,
+            "kind": "instance",
+            "label": ri.name,
+            "repo_class": self._class_name(ri),
+            "version": rcv.version if rcv else None,
+            "group": None,
+            "attributes": {"status": rid.status if rid else None},
+        }
+        owner = f"{self.environment}/{ri.name}"
+        if rcv is not None:
+            self._add_resources(owner, node_id, rcv)
+        if rid is not None:
+            self._add_records(owner, node_id, rcv, rid)
+        return rcv
+
+    def _add_records(
+        self,
+        owner: str,
+        owner_node: str,
+        rcv: Optional[RepoClassVersion],
+        rid: RepoInstanceDeployment,
+    ) -> None:
+        """Overlay the Resource records the deployment reported. Their outputs
+        stay out of the model: they can hold credentials."""
+        declarations = (rcv.resources if rcv else None) or {}
+        for resource in self.resource_information.get_resources_for_deployment(rid):
+            if resource is None:
+                continue
+            definition = (
+                self.resource_information.serialize_resource(resource)[
+                    "resource_definition"
+                ]
+                or {}
+            )
+            kind = (
+                definition.get("resource_namespace"),
+                definition.get("resource_definition_name"),
+            )
+            matches = [
+                name
+                for name, d in declarations.items()
+                if (d.get("resource_namespace"), d.get("resource_definition_name"))
+                == kind
+            ]
+            if len(matches) == 1:
+                node = self.nodes[f"res:{owner}/{matches[0]}"]
+                node["attributes"]["resource_name"] = resource.resource_name
+                continue
+            node_id = f"res:{owner}/{resource.resource_name}"
+            namespace = definition.get("resource_namespace") or ""
+            self.nodes[node_id] = {
+                "id": node_id,
+                "kind": "resource",
+                "label": resource.resource_name,
+                "resource_definition": _definition_ref(definition)
+                if definition
+                else None,
+                "provider": namespace.split(".")[0] if namespace else None,
+                "group": owner_node,
+                "attributes": {"resource_name": resource.resource_name},
+            }
+            self._edge(owner_node, node_id, "produces")
+
+    def _resolve_roots(
+        self, roots: List[str], excluded: set
+    ) -> Tuple[List[RepoInstance], List[str]]:
+        """The instances the roots name, and the root node ids in order."""
+        found: List[RepoInstance] = []
+        root_nodes: List[str] = []
+        for root in roots:
+            if root in excluded:
+                continue
+            if root.startswith("instance:"):
+                name = root[len("instance:") :]
+                ri = self.instances.get(name)
+                if ri is None:
+                    self._finding(
+                        "unknown-instance",
+                        name,
+                        f"{self.environment} has no instance named {name}.",
+                    )
+                    continue
+                found.append(ri)
+                root_nodes.append(self._instance_id(name))
+                continue
+            of_class = [
+                ri
+                for _, ri in sorted(self.instances.items())
+                if self._class_name(ri) == root
+            ]
+            if not of_class:
+                root_nodes.append(self._add_class(root, self.latest_version(root)))
+                self._finding(
+                    "not-deployed",
+                    root,
+                    f"{root} has no instance in {self.environment}.",
+                )
+            for ri in of_class:
+                found.append(ri)
+                root_nodes.append(self._instance_id(ri.name))
+        return found, root_nodes
+
+    def build(
+        self,
+        roots: List[str],
+        depth: Optional[int] = 1,
+        include: Optional[List[str]] = None,
+        exclude: Optional[List[str]] = None,
+    ) -> Dict:
+        if not roots:
+            raise ServiceException("An architecture model needs at least one root.")
+        excluded = set(exclude or [])
+        max_depth = 1 if depth is None else int(depth)
+        found, root_nodes = self._resolve_roots(roots, excluded)
+        extra, _ = self._resolve_roots(list(include or []), excluded)
+
+        def skipped(ri: RepoInstance) -> bool:
+            return ri.name in excluded or self._class_name(ri) in excluded
+
+        queue = deque((ri, 0) for ri in found + extra)
+        seen = set()
+        visited: Dict[str, Tuple[RepoInstance, RepoClassVersion, Dict[str, str]]] = {}
+        while queue:
+            ri, hops = queue.popleft()
+            if ri.name in seen or skipped(ri):
+                continue
+            seen.add(ri.name)
+            rcv = self._add_instance(ri)
+            declared = self._declared_roles(rcv) if rcv else {}
+            bound: Dict[str, str] = {}
+            for role, target in self._bindings(ri):
+                bound.setdefault(role, self._instance_id(target.name))
+                if skipped(target) or hops >= max_depth:
+                    continue
+                self._add_instance(target)
+                self._edge(
+                    self._instance_id(ri.name),
+                    self._instance_id(target.name),
+                    "depends_on",
+                    role=role,
+                    required=declared.get(role, True),
+                    status="resolved",
+                )
+                queue.append((target, hops + 1))
+            for role, required in sorted(declared.items()):
+                if required and role not in bound:
+                    self._finding(
+                        "unbound-role",
+                        ri.name,
+                        f"{ri.name}'s required role {role} is not bound in {self.environment}.",
+                    )
+            if rcv is not None:
+                visited[ri.name] = (ri, rcv, bound)
+
+        for name, (ri, rcv, bound) in sorted(visited.items()):
+            # A flow may only land on a node the scope holds.
+            roles = {r: n for r, n in bound.items() if n in self.nodes}
+            self._flows(name, f"{self.environment}/{name}", rcv, roles)
+
+        return self._model(
+            roots, max_depth, include, excluded, self.environment, root_nodes
+        )
+
+
 def build_architecture_model(client: HmdLangDeploymentClient, payload: Dict) -> Dict:
     if payload.get("environment"):
-        # The instance overlay is a later slice of SPEC006; say so rather than
-        # quietly returning a class-level model for an environment request.
-        raise ServiceException(
-            "Environment-scoped architecture models are not implemented yet; "
-            "omit environment for the class-level model."
+        return EnvironmentModelBuilder(client, payload["environment"]).build(
+            roots=payload.get("roots") or [],
+            depth=payload.get("depth", 1),
+            include=payload.get("include"),
+            exclude=payload.get("exclude"),
         )
     return ModelBuilder(client).build(
         roots=payload.get("roots") or [],
