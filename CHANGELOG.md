@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-11
+
+- fix: make the datadog-lambda dependency optional; services route telemetry through the OTel collector instead of Datadog
+
 ## 2026-11-10
 
 - feat: two base ResourceDefinitions. `ui.neuronsphere.io/view-set` (an `application`) carries a service's enabled UI views, its `base_url` and the deploy-time `group_permissions` map, for the GUI's service browser (hmd-ms-deployment NERD0003). `auth.neuronsphere.io/access-group` (a root type) is one identity-provider group, either an app's role group or a trigger group with its `grants`, for hmd-ms-identity's access catalog (NERD002). The base catalog is now 39 definitions
