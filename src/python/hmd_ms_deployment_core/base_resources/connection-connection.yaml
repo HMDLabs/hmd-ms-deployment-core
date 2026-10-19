@@ -1,0 +1,69 @@
+# Base ResourceDefinition (NERD0004): a connection to a datasource.
+#
+# A pointer to a stored connection secret, shaped like an Airflow Connection object. Isa
+# credentials.neuronsphere.io/credential (inherits secret_name/secret_arn) -- it does NOT
+# carry the credential's value, only points at it, plus the non-secret metadata needed to
+# reach a datasource. Engine-specific producers publish subtypes that `parent` off this
+# (connection.neuronsphere.io/trino-connection, postgres-connection, clickhouse-connection,
+# ...); consumers depend on this type (or a subtype) instead of on a datasource repo by name.
+#
+# First shipped only in hmd-inf-connection; living in the base catalog lets subtype repos
+# parent it without hmd-inf-connection being ingested first. conn_id and secret_keys are
+# optional additions, so existing 0.1.0 outputs stay valid. Keep hmd-inf-connection's copy
+# (meta-data/resources/connection.yaml) identical to this one.
+resource_namespace: connection.neuronsphere.io
+resource_definition_name: connection
+version: 0.1.0
+description: >-
+  A pointer to a stored connection secret plus the non-secret connection
+  metadata (conn_type, host, port, schema, extra) needed to reach a
+  datasource, shaped like an Airflow Connection object.
+parent:
+  resource_namespace: credentials.neuronsphere.io
+  resource_definition_name: credential
+  version: 0.1.0
+output_schema:
+  type: object
+  required:
+    - conn_type
+    - secret_backend
+  properties:
+    conn_type:
+      type: string
+      description: The Airflow connection type (e.g. "postgres", "trino", "clickhouse").
+    conn_id:
+      type: string
+      description: >-
+        Suggested connection identifier for consumers that register named
+        connections (e.g. an Airflow conn_id or a Superset database name).
+    host:
+      type: string
+      description: The hostname or endpoint of the connection target.
+    port:
+      type: integer
+      description: The port of the connection target.
+    schema:
+      type: string
+      description: The default schema/database/catalog for the connection.
+    extra:
+      type: object
+      description: Additional Airflow connection "extra" options, as a JSON object.
+    secret_backend:
+      type: string
+      enum:
+        - SecretsManager
+        - ParameterStore
+      description: >-
+        Which AWS service holds `secret_name` -- matches the ExternalSecrets AWS
+        provider's `service` field, for consumers that don't use
+        hmd_lib_secrets_backend's backend-agnostic resolution.
+    secret_keys:
+      type: object
+      description: >-
+        Property names of the login and password inside the secret. Consumers
+        default to "username" / "password" when absent.
+      properties:
+        username:
+          type: string
+        password:
+          type: string

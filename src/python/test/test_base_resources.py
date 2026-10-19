@@ -23,7 +23,7 @@ from hmd_ms_deployment_core.resource_information import (
 from hmd_schema_loader import DefaultLoader
 
 
-EXPECTED_BASE_COUNT = 36
+EXPECTED_BASE_COUNT = 37
 
 
 def make_client():
@@ -477,3 +477,50 @@ def test_database_account_is_not_a_postgres():
     ]
 
     assert account["parent"]["resource_definition_name"] == "database"
+
+
+# --------------------------------------------------------------------------- #
+# Connections (connection.neuronsphere.io)
+# --------------------------------------------------------------------------- #
+
+
+def test_connection_base_type_inherits_credential():
+    """connection is a credential: a pointer to a stored secret plus the
+    non-secret metadata needed to reach a datasource. Engine-specific producers
+    (trino-connection, postgres-connection, ...) parent off it."""
+    client, _ = make_client()
+    ri = ResourceInformation(client)
+    ri.seed_base_resource_definitions()
+
+    connection = ri.find_resource_definition(
+        "connection.neuronsphere.io", "connection", "0.1.0"
+    )
+    assert connection is not None
+    ancestry = [
+        (rd.resource_namespace, rd.resource_definition_name)
+        for rd in ri.get_ancestry(connection)
+    ]
+    assert ancestry == [
+        ("credentials.neuronsphere.io", "credential"),
+        ("connection.neuronsphere.io", "connection"),
+    ]
+
+    schema = ri.get_effective_output_schema(connection)
+    assert set(schema["required"]) == {"secret_name", "conn_type", "secret_backend"}
+    for prop in (
+        "conn_type",
+        "conn_id",
+        "host",
+        "port",
+        "schema",
+        "extra",
+        "secret_backend",
+        "secret_keys",
+        "secret_name",
+        "secret_arn",
+    ):
+        assert prop in schema["properties"]
+    assert schema["properties"]["secret_backend"]["enum"] == [
+        "SecretsManager",
+        "ParameterStore",
+    ]

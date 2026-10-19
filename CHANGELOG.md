@@ -19,6 +19,8 @@
 ## 2026-10-09
 
 - feat: catalogue routes for the GUI (NERD009/NERD011): `list_bundles`, `list_bundle_versions/<name>`, `list_releases` (kind, newest version per status, newest installed) and `list_release_versions/<name>`; `get_release_version` and `release_version_to_dict` now also return `notes`, `install_report` and (on get) the releases a platform release `includes`
+- feat: base catalog ships `connection.neuronsphere.io/connection` (isa `credential`, adds optional `conn_id` and `secret_keys`) so engine-specific connection subtypes can parent it
+- feat: serialized Resources (`hmd_resources`, `get_deployment_resources`) carry `resource_definition.ancestry`, the root-first `isa` chain, so consumers depending on a supertype can match a subtype Resource
 
 ## 2026-10-08
 
