@@ -1,0 +1,66 @@
+# Base ResourceDefinition: a Model Context Protocol server reachable over
+# Streamable HTTP. A subtype of application.neuronsphere.io/application.
+#
+# Producers publish one per environment they are deployed to, tagged
+# `mcp.neuronsphere.io/kind=mcp-server`. The NeuronSphere GUI's MCP gateway
+# (hmd-app-neuronsphere-core NERD012) discovers them per environment and groups
+# them by `server_name`, so the same server deployed to dev, test and prod is
+# offered to callers as one server whose tools take an `environment` argument.
+# The environment is never part of the output: it is wherever the producing repo
+# instance is deployed.
+resource_namespace: mcp.neuronsphere.io
+resource_definition_name: mcp-server
+version: 0.1.0
+description: >-
+  A Model Context Protocol server exposing tools over Streamable HTTP, routed to
+  callers through the NeuronSphere MCP gateway.
+parent:
+  resource_namespace: application.neuronsphere.io
+  resource_definition_name: application
+  version: 0.1.0
+output_schema:
+  type: object
+  required:
+    - server_name
+    - url
+  properties:
+    server_name:
+      type: string
+      pattern: "^[a-z0-9][a-z0-9_-]{0,62}$"
+      description: >-
+        The logical server name, shared by every environment's deployment of the
+        same server. Becomes the gateway's tool-name prefix (<server_name>__<tool>).
+    url:
+      type: string
+      description: The Streamable HTTP endpoint, reachable from the gateway.
+    title:
+      type: string
+      description: Human-readable name shown in the gateway's registry listing.
+    description:
+      type: string
+      description: What the server is for, shown in the registry listing.
+    version:
+      type: string
+      description: >-
+        The deployed server's version. Where environments differ, the gateway
+        advertises the newest one's tool schemas.
+    auth_mode:
+      type: string
+      enum: [service, passthrough]
+      default: service
+      description: >-
+        service -- the gateway presents its own credential (credential_ref) and the
+        caller's identity in X-NS-User / X-NS-Environment headers; passthrough --
+        the gateway forwards the caller's own SSO bearer token.
+    credential_ref:
+      type: string
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      description: >-
+        service mode only: the key, in the gateway's upstream-credentials secret,
+        holding the bearer token to present. Omit when the server needs none.
+    required_role:
+      type: string
+      enum: [viewer, deployer, admin]
+      default: viewer
+      description: >-
+        The minimum environment role a caller needs to use this deployment.

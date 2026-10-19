@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-18
+
+- feat: base ResourceDefinition `mcp.neuronsphere.io/mcp-server` (parent `application`): an MCP server's `server_name`, `url`, and how the GUI's MCP gateway authenticates to and authorizes it (`auth_mode`, `credential_ref`, `required_role`)
+
 ## 2026-10-14
 
 - feat: base ResourceDefinition `database.neuronsphere.io/database-account` (a service's own database and login on a shared instance; parent `database`, not `postgres`), requiring `database_name` and `secret_name`. Consumers that asked for `postgres` bound to the environment's shared instance and got its admin credential
