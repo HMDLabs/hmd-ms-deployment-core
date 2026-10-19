@@ -49,7 +49,7 @@
       },
       "datadog-lambda": {
         "repo_class_name": "hmd-inf-datadog-lambdas",
-        "required": "true",
+        "required": "false",
         "version_spec": "~= 0.1.7"
       },
       "base-vpc": {

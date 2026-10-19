@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-19
+
+- fix: make the datadog-lambda dependency optional; services route telemetry through the OTel collector instead of Datadog
+
 ## 2026-10-18
 
 - feat: base ResourceDefinition `mcp.neuronsphere.io/mcp-server` (parent `application`): an MCP server's `server_name`, `url`, and how the GUI's MCP gateway authenticates to and authorizes it (`auth_mode`, `credential_ref`, `required_role`)
