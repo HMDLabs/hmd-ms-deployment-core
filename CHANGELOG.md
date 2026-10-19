@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-18
+
+- feat: base ResourceDefinition `mcp.neuronsphere.io/mcp-server` (parent `application`): an MCP server's `server_name`, `url`, and how the GUI's MCP gateway authenticates to and authorizes it (`auth_mode`, `credential_ref`, `required_role`)
+
 ## 2026-10-17
 
 - feat: environment-scoped architecture models (NERD036 SPEC006): `get_architecture_model` with `environment` draws the environment's instances (`inst:<env>/<name>`, with class, current deployment version and status), their declared resources overlaid by the Resource records their deployments produced (`resource_name`; outputs are never copied), `depends_on` edges from role bindings and `unbound-role` / `not-deployed` findings; roots may be `instance:<name>` or a class standing for its instances; every model's scope names its `root_nodes`

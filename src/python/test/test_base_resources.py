@@ -23,7 +23,7 @@ from hmd_ms_deployment_core.resource_information import (
 from hmd_schema_loader import DefaultLoader
 
 
-EXPECTED_BASE_COUNT = 35
+EXPECTED_BASE_COUNT = 36
 
 
 def make_client():
@@ -116,6 +116,14 @@ def test_seed_creates_inheritance_edges():
     )
     ancestry = [rd.resource_definition_name for rd in ri.get_ancestry(microservice)]
     assert ancestry == ["application", "microservice"]
+
+    # An MCP server is an application, so a generic `application` requirement can
+    # be satisfied by one; the GUI's MCP gateway discovers them (NERD012).
+    mcp_server = ri.find_resource_definition(
+        "mcp.neuronsphere.io", "mcp-server", "0.1.0"
+    )
+    ancestry = [rd.resource_definition_name for rd in ri.get_ancestry(mcp_server)]
+    assert ancestry == ["application", "mcp-server"]
 
     # Both a cloud vpc and the local docker-network inherit from the generic
     # network supertype, so either can satisfy a generic `network` requirement.

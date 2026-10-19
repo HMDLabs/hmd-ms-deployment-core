@@ -13,7 +13,7 @@ from hmd_lang_deployment.hmd_lang_deployment_client import HmdLangDeploymentClie
 from hmd_ms_deployment_core.resource_information import seed_base_catalog_best_effort
 from hmd_schema_loader import DefaultLoader
 
-EXPECTED_BASE_COUNT = 35
+EXPECTED_BASE_COUNT = 36
 
 
 def make_client():
