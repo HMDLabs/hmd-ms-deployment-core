@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-20
+
+- fix: build on hmd-ms-base 0.2.284 and require hmd-base-service 0.2.226, so services built FROM this image can serve MCP tools (hmd-ms-base's MCP mode)
+
 ## 2026-10-18
 
 - feat: base ResourceDefinition `mcp.neuronsphere.io/mcp-server` (parent `application`): an MCP server's `server_name`, `url`, and how the GUI's MCP gateway authenticates to and authorizes it (`auth_mode`, `credential_ref`, `required_role`)

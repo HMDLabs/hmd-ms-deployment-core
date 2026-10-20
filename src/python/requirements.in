@@ -8,4 +8,4 @@ hmd-lib-librarian-client~=0.1.111
 jinja2
 pyyaml
 jsonschema
-hmd-base-service~=0.2.222
+hmd-base-service~=0.2.226
