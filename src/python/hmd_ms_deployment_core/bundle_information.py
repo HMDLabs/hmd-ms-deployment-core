@@ -10,6 +10,11 @@ version is the version of that repo class which shipped it.
 The full role declaration is stored on ``bundle_version.members`` (read whole by
 resolution); the ``bundle_version_req_*`` edges are written alongside so the
 graph can answer "which bundles use this class / resource".
+
+A bundle added to an environment is recorded by ``environment_has_bundle_version``
+(bindings, declared instances, profiles and where it came from) and one
+``repo_instance_member_of_bundle_version`` edge per bound role (NERD0019 SPEC0003),
+so "which bundle put this instance here" is a graph question, not a local file's.
 """
 
 import copy
@@ -25,6 +30,14 @@ from hmd_lang_deployment.bundle_version_req_repo_class import (
 )
 from hmd_lang_deployment.bundle_version_req_resource_definition import (
     BundleVersionReqResourceDefinition,
+)
+from hmd_lang_deployment.environment import Environment
+from hmd_lang_deployment.environment_has_bundle_version import (
+    EnvironmentHasBundleVersion,
+)
+from hmd_lang_deployment.repo_instance import RepoInstance
+from hmd_lang_deployment.repo_instance_member_of_bundle_version import (
+    RepoInstanceMemberOfBundleVersion,
 )
 from hmd_lang_deployment.hmd_lang_deployment_client import HmdLangDeploymentClient
 
@@ -51,6 +64,7 @@ _CONTENT_ATTRIBUTES = (
     "default_configuration",
     "members",
     "discovery",
+    "local",
     "source_repo_class_name",
     "source_repo_class_version",
 )
@@ -187,6 +201,7 @@ class BundleInformation:
             default_configuration=payload.get("default_configuration"),
             members=copy.deepcopy(roles),
             discovery=payload.get("discovery"),
+            local=payload.get("local"),
         )
 
         try:
@@ -255,6 +270,179 @@ class BundleInformation:
                 )
         return results
 
+    # --- membership in an environment (NERD0019 SPEC0003) -------------------
+
+    def bundle_name_of(self, bv: BundleVersion) -> str:
+        rels = self.client.get_to_bundle_has_bundle_version_hmd_lang_deployment(bv)
+        return self.rs.ref_from(rels[0]).bundle_name
+
+    def _environment_instances(
+        self, environment: Environment
+    ) -> Dict[str, RepoInstance]:
+        rels = self.client.get_from_environment_has_repo_instance_hmd_lang_deployment(
+            environment
+        )
+        self.rs.pull_relationship_nouns(rels)
+        instances = (self.rs.ref_to(rel) for rel in rels)
+        return {ri.name: ri for ri in instances}
+
+    def _attached(
+        self, environment: Environment
+    ) -> List[Tuple[EnvironmentHasBundleVersion, BundleVersion, str]]:
+        rels = self.client.get_from_environment_has_bundle_version_hmd_lang_deployment(
+            environment
+        )
+        self.rs.pull_relationship_nouns(rels)
+        out = []
+        for rel in rels:
+            bv = self.rs.ref_to(rel)
+            out.append((rel, bv, self.bundle_name_of(bv)))
+        return out
+
+    def _remove_attachment(
+        self,
+        rel: EnvironmentHasBundleVersion,
+        bv: BundleVersion,
+        instances: Dict[str, RepoInstance],
+    ) -> None:
+        ids = {ri.identifier for ri in instances.values()}
+        for member in self.client.get_to_repo_instance_member_of_bundle_version_hmd_lang_deployment(
+            bv
+        ):
+            ref_from = member.ref_from
+            if (ref_from if isinstance(ref_from, str) else ref_from.identifier) in ids:
+                self.client.delete(member)
+        self.client.delete(rel)
+
+    def attach_bundle_to_environment(
+        self,
+        environment: Environment,
+        bundle_name: str,
+        version: Optional[str] = None,
+        bindings: Optional[Dict[str, str]] = None,
+        declared: Optional[List[str]] = None,
+        profiles: Optional[List[str]] = None,
+        release_version: Optional[str] = None,
+        source_ref: Optional[str] = None,
+        digest: Optional[str] = None,
+    ) -> Dict:
+        """Record that a bundle is in an environment. ``bindings`` maps each
+        bound role to the instance filling it; ``declared`` names the instances
+        the bundle provisioned (the rest it reused). Replaces any earlier
+        record of the same bundle in the environment, whatever its version."""
+        bv = self.get_bundle_version(bundle_name, version)
+        bindings = dict(bindings or {})
+        declared = list(declared or [])
+        roles = bv.members or {}
+
+        unknown = sorted(set(bindings) - set(roles))
+        if unknown:
+            raise ServiceException(
+                f"Bundle, {bundle_name} {bv.version}, has no role, {', '.join(unknown)}."
+            )
+        instances = self._environment_instances(environment)
+        missing = sorted({i for i in bindings.values() if i not in instances})
+        if missing:
+            raise ServiceException(
+                f"Environment, {environment.type}, has no instance, {', '.join(missing)}."
+            )
+        unbound = sorted(set(declared) - set(bindings.values()))
+        if unbound:
+            raise ServiceException(
+                f"Bundle, {bundle_name}, declares {', '.join(unbound)} but binds no role to it."
+            )
+
+        for rel, attached_bv, name in self._attached(environment):
+            if name == bundle_name:
+                self._remove_attachment(rel, attached_bv, instances)
+
+        rel = EnvironmentHasBundleVersion(
+            ref_from=environment.identifier,
+            ref_to=bv.identifier,
+            bindings=bindings,
+            declared=declared,
+            profiles=list(profiles or []),
+            release_version=release_version,
+            source_ref=source_ref,
+            digest=digest,
+        )
+        self.client.upsert(rel)
+        for role, instance_name in sorted(bindings.items()):
+            self.client.upsert(
+                RepoInstanceMemberOfBundleVersion(
+                    ref_from=instances[instance_name].identifier,
+                    ref_to=bv.identifier,
+                    role=role,
+                    provisioned="true" if instance_name in declared else "false",
+                )
+            )
+        return attachment_to_dict(bundle_name, bv, rel)
+
+    def detach_bundle_from_environment(
+        self, environment: Environment, bundle_name: str
+    ) -> Dict:
+        """Remove a bundle's record from an environment, returning it -- its
+        ``declared`` list is what the caller may now undeclare. Deploys and
+        destroys nothing."""
+        for rel, bv, name in self._attached(environment):
+            if name == bundle_name:
+                row = attachment_to_dict(bundle_name, bv, rel)
+                self._remove_attachment(
+                    rel, bv, self._environment_instances(environment)
+                )
+                return row
+        raise ServiceException(
+            f"Bundle, {bundle_name}, is not attached to environment, {environment.type}."
+        )
+
+    def list_environment_bundles(self, environment: Environment) -> List[Dict]:
+        rows = [
+            attachment_to_dict(name, bv, rel)
+            for rel, bv, name in self._attached(environment)
+        ]
+        return sorted(rows, key=lambda r: r["bundle_name"])
+
+    def bundles_of_instance(
+        self, environment: Environment, instance_name: str
+    ) -> List[Dict]:
+        """The bundles an instance belongs to, and the role it fills in each."""
+        instance = self._environment_instances(environment).get(instance_name)
+        if instance is None:
+            raise ServiceException(
+                f"Environment, {environment.type}, has no instance, {instance_name}."
+            )
+        rels = self.client.get_from_repo_instance_member_of_bundle_version_hmd_lang_deployment(
+            instance
+        )
+        self.rs.pull_relationship_nouns(rels)
+        rows = []
+        for rel in rels:
+            bv = self.rs.ref_to(rel)
+            rows.append(
+                {
+                    "bundle_name": self.bundle_name_of(bv),
+                    "version": bv.version,
+                    "role": rel.role,
+                    "provisioned": rel.provisioned,
+                }
+            )
+        return sorted(rows, key=lambda r: (r["bundle_name"], r["role"]))
+
+
+def attachment_to_dict(
+    bundle_name: str, bv: BundleVersion, rel: EnvironmentHasBundleVersion
+) -> Dict:
+    return {
+        "bundle_name": bundle_name,
+        "version": bv.version,
+        "bindings": rel.bindings or {},
+        "declared": rel.declared or [],
+        "profiles": rel.profiles or [],
+        "release_version": rel.release_version,
+        "source_ref": rel.source_ref,
+        "digest": rel.digest,
+    }
+
 
 def bundle_version_to_dict(bundle_name: str, bv: BundleVersion) -> Dict:
     return {
@@ -267,4 +455,5 @@ def bundle_version_to_dict(bundle_name: str, bv: BundleVersion) -> Dict:
         "default_configuration": bv.default_configuration,
         "roles": bv.members,
         "discovery": bv.discovery,
+        "local": bv.local,
     }

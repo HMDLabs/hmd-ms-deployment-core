@@ -570,6 +570,7 @@ bundle_core_payload = {
             "bundle_name": BUNDLE_NAME,
             "config_schema": {"type": "object", "properties": {"size": {"type": "integer"}}},
             "default_configuration": {"size": 1},
+            "local": {"default_profiles": ["database"], "reuse": "auto"},
             "roles": {
                 "vpc": {"repo_class_name": "test-vpc", "required": "true", "version_spec": "~= 1.0"},
                 "database": {
@@ -606,6 +607,17 @@ release_install_payload = {
         "config_policy": {"required": ["*.account"]},
     },
 }
+
+bundle_attach_payload = {
+    "environment": ENVIRONMENT_TYPE,
+    "bundle_name": BUNDLE_NAME,
+    "version": "0.1.0",
+    "bindings": {"vpc": "robot-vpc", "database": "robot-database"},
+    "declared": ["robot-database"],
+    "profiles": ["database"],
+    "release_version": "0.1.0",
+}
+bundle_detach_payload = {"environment": ENVIRONMENT_TYPE, "bundle_name": BUNDLE_NAME}
 
 release_coverage_payload = {"pins": {"test-vpc": "1.0.0", "test-database": "1.0.0"}}
 release_coverage_untested_payload = {"pins": {"test-vpc": "1.1.0", "test-database": "1.0.0"}}

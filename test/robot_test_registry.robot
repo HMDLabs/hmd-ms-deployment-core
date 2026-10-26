@@ -688,6 +688,43 @@ Test 10.5 - List Bundles And Releases
     ${listed}=    Evaluate    [v["version"] for v in $release_versions]
     Should Contain    ${listed}    0.1.0
 
+Test 10.6 - Attach And Detach A Bundle (NERD0019)
+    [Documentation]    attach_bundle_to_environment records a bundle's bindings and members in the
+    ...                graph; the local block is kept on the version; detach returns what was declared
+    [Tags]    bundle    membership    registry
+
+    ${bundle}=    Invoke Custom Operation    path=get_bundle_version/${BUNDLE_NAME}?version=0.1.0    data=&{EMPTY}    method=GET
+    Should Be Equal    ${bundle}[local][reuse]    auto
+
+    ${row}=    Invoke Custom Operation    path=attach_bundle_to_environment    data=&{bundle_attach_payload}    method=POST
+    Should Be Equal    ${row}[bindings][database]    robot-database
+    Should Be Equal    ${row}[declared][0]    robot-database
+
+    ${listed}=    Invoke Custom Operation    path=list_environment_bundles/${ENVIRONMENT_TYPE}    data=&{EMPTY}    method=GET
+    ${names}=    Evaluate    [b["bundle_name"] for b in $listed]
+    Should Contain    ${names}    ${BUNDLE_NAME}
+
+    ${member}=    Invoke Custom Operation    path=list_environment_bundles/${ENVIRONMENT_TYPE}?instance=robot-vpc    data=&{EMPTY}    method=GET
+    Should Be Equal    ${member}[0][role]    vpc
+    Should Be Equal    ${member}[0][provisioned]    false
+
+    ${removed}=    Invoke Custom Operation    path=detach_bundle_from_environment    data=&{bundle_detach_payload}    method=POST
+    Should Be Equal    ${removed}[declared][0]    robot-database
+    ${after}=    Invoke Custom Operation    path=list_environment_bundles/${ENVIRONMENT_TYPE}    data=&{EMPTY}    method=GET
+    ${names}=    Evaluate    [b["bundle_name"] for b in $after]
+    Should Not Contain    ${names}    ${BUNDLE_NAME}
+
+Test 10.7 - Export A Release As A Lock (NERD0019)
+    [Documentation]    get_release_lock returns the installed release's pins as a neuronsphere.lock,
+    ...                in lock order and under the lock's own header
+    [Tags]    release    lock    registry
+
+    ${lock}=    Invoke Custom Operation    path=get_release_lock/${RELEASE_NAME}?version=0.1.0    data=&{EMPTY}    method=GET
+    Should Be Equal    ${lock}[repo_class_name]    hmd-bundle-core
+    ${pins}=    Evaluate    [(e["repo_class_name"], e["version"]) for e in $lock["resolved"]]
+    ${expected}=    Evaluate    [("test-vpc", "1.0.0"), ("test-database", "1.0.0")]
+    Should Be Equal    ${pins}    ${expected}
+
 *** Keywords ***
 Register Repo Class Version Tolerating Existing
     [Documentation]    add_repo_class_version, treating "already has version" as success: the

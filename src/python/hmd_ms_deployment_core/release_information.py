@@ -61,6 +61,12 @@ ALLOWED_TRANSITIONS = {
 
 AWAITING_REGISTRATION = "awaiting_registration"
 
+# neuronsphere.lock (hmd-cli-neuronsphere internal/lock): the schema version it
+# writes, its header keys, and the entry keys a release keeps beyond its own.
+LOCK_SCHEMA_VERSION = 1
+_LOCK_HEADER = ("version", "repo_class_name", "generated_from")
+_LOCK_ENTRY_EXTRAS = ("profiles", "satisfies", "source")
+
 
 PinSet = Set[Tuple[str, str]]
 
@@ -440,6 +446,7 @@ class ReleaseInformation:
         return self.install_release(
             {
                 "repo_class_name": self.release_name_of(rv),
+                **(rv.lock_header or {}),
                 "resolved": rv.artifacts or [],
             },
             {
@@ -495,17 +502,50 @@ class ReleaseInformation:
                 "external_artifacts": (release_json.get("images") or {}).get(
                     e["repo_class_name"], []
                 ),
+                # The lock's own fields, kept so the lock can be exported
+                # unchanged (NERD0019 SPEC0005).
+                **{k: e[k] for k in _LOCK_ENTRY_EXTRAS if k in e},
             }
             for e in entries
         ]
+        lock_header = {k: lock[k] for k in _LOCK_HEADER if k in lock}
         rv = self._record_installed_version(
-            release_name, version, artifacts, release_json
+            release_name,
+            version,
+            artifacts,
+            {**release_json, "lock_header": lock_header},
         )
         install_report = self._report(entries, rv.install_report)
         self._wire_present_pins(rv, install_report["entries"])
         rv.install_report = install_report
         self.client.upsert(rv)
         return {"release_name": release_name, "version": version, **install_report}
+
+    def release_version_lock(self, release_name: str, version: str) -> Dict:
+        """A release's pin set as a ``neuronsphere.lock`` (JSON form), in pin
+        order (NERD0019 SPEC0005). A release installed from a lock exports
+        that lock; one cut here is named after the release."""
+        rv = self.get_release_version(release_name, version)
+        header = rv.lock_header or {
+            "version": LOCK_SCHEMA_VERSION,
+            "repo_class_name": release_name,
+            "generated_from": f"release:{release_name}@{rv.version}",
+        }
+        resolved = []
+        for a in rv.artifacts or []:
+            entry = {
+                "repo_class_name": a["repo_class_name"],
+                "version": a["version"],
+                "profiles": a.get("profiles") or [],
+            }
+            if a.get("satisfies"):
+                entry["satisfies"] = a["satisfies"]
+            entry["content_path"] = a.get("content_path") or ""
+            for key in ("digest", "source"):
+                if a.get(key):
+                    entry[key] = a[key]
+            resolved.append(entry)
+        return {**header, "resolved": resolved}
 
     def _record_installed_version(
         self, release_name: str, version: str, artifacts: List[Dict], release_json: Dict
@@ -537,6 +577,7 @@ class ReleaseInformation:
             evidence=release_json.get("evidence") or {},
             notes=release_json.get("notes") or [],
             artifacts=artifacts,
+            lock_header=release_json.get("lock_header") or None,
         )
         self.client.upsert(rv)
         self.client.upsert(

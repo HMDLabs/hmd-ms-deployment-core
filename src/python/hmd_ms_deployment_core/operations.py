@@ -1033,6 +1033,84 @@ def setup(service):
         return bundle_version_to_dict(name, bv)
 
     @service.operation(
+        rest_path="/apiop/attach_bundle_to_environment",
+        rest_methods=["POST"],
+        args={"payload": "json"},
+    )
+    def attach_bundle_to_environment(evt, ctx):
+        """Record a bundle as added to an environment (NERD0019 SPEC0003).
+
+        Body: ``{"environment", "bundle_name", "version"?, "bindings"
+        ({role: instance_name}), "declared" ([instance_name] the bundle
+        provisioned), "profiles"?, "release_version"?, "source_ref"?,
+        "digest"?}``. Replaces an earlier record of the same bundle. Deploys
+        nothing: the instances must already be in the environment.
+        """
+        deploy_client = _get_deploy_client(evt, ctx)
+        payload = dict(evt["args"]["payload"])
+        environment = get_valid_environment(
+            deploy_client, payload.pop("environment", None)
+        )
+        bundle_name = payload.pop("bundle_name", None)
+        if not bundle_name:
+            raise ServiceException(
+                "attach_bundle_to_environment requires 'bundle_name'."
+            )
+        return BundleInformation(deploy_client).attach_bundle_to_environment(
+            environment, bundle_name, **payload
+        )
+
+    @service.operation(
+        rest_path="/apiop/detach_bundle_from_environment",
+        rest_methods=["POST"],
+        args={"payload": "json"},
+    )
+    def detach_bundle_from_environment(evt, ctx):
+        """Remove a bundle's record from an environment and return it; its
+        ``declared`` list is what the caller may undeclare. Body:
+        ``{"environment", "bundle_name"}``. Destroys nothing."""
+        deploy_client = _get_deploy_client(evt, ctx)
+        payload = evt["args"]["payload"]
+        environment = get_valid_environment(deploy_client, payload.get("environment"))
+        return BundleInformation(deploy_client).detach_bundle_from_environment(
+            environment, payload.get("bundle_name")
+        )
+
+    @service.operation(
+        rest_path="/apiop/list_environment_bundles/<args_type>",
+        rest_methods=["GET"],
+        args={"type": "string"},
+    )
+    def list_environment_bundles(evt, ctx):
+        """The bundles added to an environment, with their bindings, declared
+        instances and provenance. ``?instance=<name>`` instead lists the
+        bundles that one instance belongs to and the role it fills."""
+        deploy_client = _get_deploy_client(evt, ctx)
+        environment = get_valid_environment(deploy_client, evt["args"]["type"])
+        info = BundleInformation(deploy_client)
+        instance = _query_params(evt).get("instance")
+        if instance:
+            return info.bundles_of_instance(environment, instance)
+        return info.list_environment_bundles(environment)
+
+    @service.operation(
+        rest_path="/apiop/get_release_lock/<args_name>",
+        rest_methods=["GET"],
+        args={"name": "string"},
+    )
+    def get_release_lock(evt, ctx):
+        """A release version's pins as a ``neuronsphere.lock`` in JSON form
+        (``?version=`` required). A release installed from a lock returns that
+        lock unchanged (NERD0019 SPEC0005)."""
+        deploy_client = _get_deploy_client(evt, ctx)
+        version = _query_params(evt).get("version")
+        if not version:
+            raise ServiceException("get_release_lock requires ?version=.")
+        return ReleaseInformation(deploy_client).release_version_lock(
+            evt["args"]["name"], version
+        )
+
+    @service.operation(
         rest_path="/apiop/install_release",
         rest_methods=["POST"],
         args={"payload": "json"},

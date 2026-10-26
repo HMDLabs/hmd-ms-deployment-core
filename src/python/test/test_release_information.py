@@ -487,3 +487,68 @@ def test_release_version_row_exposes_notes_install_report_and_includes():
     assert row["notes"] == platform.notes
     assert row["install_report"] is None
     assert row["includes"] == [{"release_name": "telemetry", "version": "0.1.0"}]
+
+
+# --- lock round-trip (NERD0019 SPEC0005) -------------------------------------
+
+
+STACK_LOCK = {
+    "version": 1,
+    "repo_class_name": "hmd-stack-analytics",
+    "generated_from": "pins",
+    "resolved": [
+        {
+            "repo_class_name": "hmd-app-airflow",
+            "version": "0.4.352",
+            "profiles": ["airflow"],
+            "content_path": "repository:/hmd-app-airflow/0.4.352/hmd-app-airflow_0.4.352_build.zip",
+        },
+        {
+            "repo_class_name": "hmd-inf-credentials",
+            "version": "0.1.6",
+            "profiles": [],
+            "satisfies": ["adhoc-users", "users"],
+            "content_path": "repository:/hmd-inf-credentials/0.1.6/hmd-inf-credentials_0.1.6_build.zip",
+            "digest": "sha256:f52a",
+            "source": "ghcr.io/neuronsphere/classes/hmd-inf-credentials",
+        },
+    ],
+}
+
+
+def test_install_carries_every_lock_field_onto_the_artifacts():
+    client = _new_client()
+    info = ReleaseInformation(client, FakePresence({}))
+    info.install_release(STACK_LOCK, {"release_name": "analytics", "version": "0.1.4"})
+
+    rv = info.get_release_version("analytics", "0.1.4")
+    credentials = rv.artifacts[1]
+    assert credentials["profiles"] == []
+    assert credentials["satisfies"] == ["adhoc-users", "users"]
+    assert credentials["source"] == "ghcr.io/neuronsphere/classes/hmd-inf-credentials"
+    assert rv.artifacts[0]["profiles"] == ["airflow"]
+
+
+def test_a_lock_exported_from_a_release_equals_the_lock_it_was_installed_from():
+    client = _new_client()
+    info = ReleaseInformation(client, FakePresence({}))
+    info.install_release(STACK_LOCK, {"release_name": "analytics", "version": "0.1.4"})
+
+    assert info.release_version_lock("analytics", "0.1.4") == STACK_LOCK
+
+
+def test_a_cut_release_exports_a_lock_named_after_the_release():
+    client = _registered(OTEL, CH)
+    info = ReleaseInformation(client)
+    info.create_release_version("telemetry", _pins(OTEL, CH), version="0.1.0")
+
+    lock = info.release_version_lock("telemetry", "0.1.0")
+
+    assert lock["version"] == 1
+    assert lock["repo_class_name"] == "telemetry"
+    assert lock["generated_from"] == "release:telemetry@0.1.0"
+    assert [(e["repo_class_name"], e["version"]) for e in lock["resolved"]] == [
+        OTEL,
+        CH,
+    ]
+    assert all(e["profiles"] == [] for e in lock["resolved"])
