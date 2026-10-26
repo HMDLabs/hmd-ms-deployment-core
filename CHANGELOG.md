@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-26
+
+- feat: NERD0011 dry-run deployments: `PLANNED`, the terminal status of a dry run's ChangeSetDeployment and instance deployments; `add_repo_instance(dry_run=True)` marks the new deployment (`plan.dry_run`) and leaves an existing instance's auto_deploy, dependency edges and pending real deployments untouched; a dry-run deployment never becomes current, whether it ends PLANNED or FAILED. Requires `hmd-lang-deployment~=0.1.102`.
+
 ## 2026-10-23
 
 - fix: build on `ghcr.io/hmdlabs/hmd-ms-base:0.2.285` (was 0.2.284), the first base image verified to reject the compromised eMudhra chains (`certifi==2026.10.19`), and require `hmd-graphql-client~=0.1.186`, `hmd-cli-tools~=1.2.258`, `hmd-lib-auth~=0.1.131`, `hmd-lib-librarian-client~=0.1.121`, `hmd-base-service~=0.2.227` so this service's own lock, which the image pip-installs over the base, does not pull certifi back to 2025.4.26. Earlier images carried `certifi==2025.4.26`, which still trusts the eight eMudhra intermediate CAs whose private keys were disclosed on 2026-10-20.

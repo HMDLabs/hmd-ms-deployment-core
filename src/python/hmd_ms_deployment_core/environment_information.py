@@ -43,6 +43,7 @@ from hmd_ms_deployment_core import (
     DESTROY_NEXT,
     SKIPPED,
     DESTROYED,
+    PLANNED,
 )
 from hmd_ms_deployment_core.environment_query import nouns, relationships
 from hmd_ms_deployment_core._env_cache_hook import get_env_cache, is_volatile
@@ -50,7 +51,12 @@ from hmd_ms_deployment_core.version import VersionSpecifier
 
 logger = logging.getLogger(f"HMD.{__name__}")
 
-TERMINAL_RID_STATUSES = {DEPLOYED, FAILED, DESTROYED, SKIPPED}
+TERMINAL_RID_STATUSES = {DEPLOYED, FAILED, DESTROYED, SKIPPED, PLANNED}
+
+
+def is_dry_run_deployment(rid: RepoInstanceDeployment) -> bool:
+    """NERD0011: whether the deployment was created by a dry run."""
+    return bool((getattr(rid, "plan", None) or {}).get("dry_run"))
 
 
 def mark_rid_status(client, rid: RepoInstanceDeployment, status: str, now=None):
@@ -413,6 +419,7 @@ class EnvironmentInformation:
         image_only: bool = False,
         auto_deploy: str = "false",
         status=DEPLOY_NEXT,
+        dry_run: bool = False,
     ) -> Tuple[RepoInstance, RepoInstanceDeployment]:
         """Add a new RepoInstance, and/or a new RepoInstanceDeployment if the
         RepoInstance exists.
@@ -424,6 +431,10 @@ class EnvironmentInformation:
         :param config_spec:
         :param dependencies:
         :type dependencies:
+        :param dry_run: NERD0011: the deployment only plans. An existing
+            instance is left exactly as it is (auto_deploy, dependency edges,
+            other pending deployments); only the new RepoInstanceDeployment
+            is written.
         :return:
         :rtype:
         """
@@ -457,7 +468,7 @@ class EnvironmentInformation:
 
         else:
             # Make sure the repo-class is the same as the current RepoClass for the instance...
-            if instance.auto_deploy != auto_deploy:
+            if instance.auto_deploy != auto_deploy and not dry_run:
                 instance.auto_deploy = auto_deploy
                 self.client.upsert(instance)
 
@@ -482,6 +493,7 @@ class EnvironmentInformation:
             dependencies,
             image_only,
             status,
+            dry_run=dry_run,
         )
 
     def _synch_dependencies(
@@ -570,6 +582,7 @@ class EnvironmentInformation:
         dependencies=None,
         image_only: bool = False,
         status: str = DEPLOY_NEXT,
+        dry_run: bool = False,
     ) -> RepoInstanceDeployment:
         """Create a new RepoInstanceDeployment.
 
@@ -616,6 +629,9 @@ class EnvironmentInformation:
 
         if image_only:
             deployment_data["image_only"] = "true"
+
+        if dry_run:
+            deployment_data["plan"] = {"dry_run": True}
 
         if config_spec:
             logger.debug(f"Configuration from {config_spec}.")
@@ -724,13 +740,21 @@ class EnvironmentInformation:
         for ri_ri in rirris:
             current_dependencies[ri_ri.role].append(ri_ri)
 
-        # This new one will be handled next, so skip any that are marked as DEPLOY_NEXT...
-        for rid in [
+        existing_rids = [
             self.rel_support.ref_to(ririd)
             for ririd in self.client.get_from_repo_instance_has_repo_instance_deployment_hmd_lang_deployment(
                 repo_instance
             )
-        ]:
+        ]
+        # NERD0011: a dry run of an instance that already has deployments leaves
+        # its topology alone -- the dependency edges are what real deploys are
+        # ordered by. A brand-new instance has no topology to protect, and needs
+        # its edges for the dry run's own DAG.
+        preserve_topology = dry_run and bool(existing_rids)
+
+        # This new one will be handled next, so skip any that are marked as DEPLOY_NEXT...
+        # ...unless it is only a dry run, which must never cancel a real one.
+        for rid in existing_rids if not dry_run else []:
             if rid.status in [DEPLOY_NEXT, DESTROY_NEXT]:
                 mark_rid_status(self.client, rid, SKIPPED)
         logger.debug(
@@ -762,6 +786,9 @@ class EnvironmentInformation:
             ref_to=repo_class_version.identifier,
         )
         rid_rc = self.client.upsert(rid_rc)
+
+        if preserve_topology:
+            return new_instance_deployment
 
         for dependency, instances in dependencies.items():
             self._synch_dependencies(
@@ -909,8 +936,15 @@ class EnvironmentInformation:
         logger.debug("RELS: %d", len(rels))
         self.rel_support.pull_relationship_nouns(rels)
 
+        # NERD0011: a dry run's deployment never becomes current -- not when it
+        # is PLANNED, and not when it fails -- so the instance's real current
+        # deployment is untouched.
+        planned_only = status == PLANNED or is_dry_run_deployment(rid)
+        if planned_only:
+            mark_rid_status(self.client, rid, status, now_)
+
         # Single pass: update both relationships and deployment nodes together
-        for ri_rid in rels:
+        for ri_rid in rels if not planned_only else []:
             ref_to_id = (
                 ri_rid.ref_to
                 if isinstance(ri_rid.ref_to, str)
