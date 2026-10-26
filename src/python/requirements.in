@@ -1,11 +1,11 @@
 hmd-lang-deployment~=0.1.102
 hmd-lang-timestamp-record==0.1.4
-hmd-graphql-client~=0.1.186
-hmd-cli-tools~=1.2.258
+hmd-graphql-client~=0.1.187
+hmd-cli-tools~=1.2.259
 hmd-meta-types~=0.2.91
-hmd-lib-auth~=0.1.131
-hmd-lib-librarian-client~=0.1.121
+hmd-lib-auth~=0.1.132
+hmd-lib-librarian-client~=0.1.122
 jinja2
 pyyaml
 jsonschema
-hmd-base-service~=0.2.227
+hmd-base-service~=0.2.229

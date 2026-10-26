@@ -2,6 +2,7 @@
 
 ## 2026-10-26
 
+- fix: require `hmd-base-service~=0.2.229` (OpenTelemetry 1.41.0 / 0.62b0, wrapt 2.5.1, protobuf 6.33.5, `PyYAML==6.0.3`), `hmd-cli-tools~=1.2.259`, `hmd-lib-auth~=0.1.132`, `hmd-graphql-client~=0.1.187` and `hmd-lib-librarian-client~=0.1.122` to match the rest of the hmd packages
 - feat: NERD0011 dry-run deployments: `PLANNED`, the terminal status of a dry run's ChangeSetDeployment and instance deployments; `add_repo_instance(dry_run=True)` marks the new deployment (`plan.dry_run`) and leaves an existing instance's auto_deploy, dependency edges and pending real deployments untouched; a dry-run deployment never becomes current, whether it ends PLANNED or FAILED. Requires `hmd-lang-deployment~=0.1.102`.
 
 ## 2026-10-23
