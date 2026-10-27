@@ -12,10 +12,39 @@ from typing import Optional, Tuple
 logger = logging.getLogger(f"HMD.{__name__}")
 
 
-def resolve_deploy_image(environment_type: Optional[str] = None) -> Optional[str]:
+TOOLSET_REPO = "hmd-img-projectbuilder"
+
+
+class InvalidDeployImage(ValueError):
+    """A per-item ``deploy_image`` that is not an allowed tool set image."""
+
+
+def _registry_prefix(image: str) -> str:
+    return image.split("@", 1)[0].rsplit("/", 1)[0]
+
+
+def _validate_override(override: str, default: Optional[str]) -> str:
+    """An override runs with deploy credentials, so it must be the tool set
+    image from the registry the environment already deploys from."""
+    parsed = parse_image_reference(override)
+    if parsed is None or parsed[0] != TOOLSET_REPO:
+        raise InvalidDeployImage(
+            f"deploy_image {override!r} must be a tagged {TOOLSET_REPO} image."
+        )
+    if default and _registry_prefix(override) != _registry_prefix(default):
+        raise InvalidDeployImage(
+            f"deploy_image {override!r} must come from {_registry_prefix(default)}."
+        )
+    return override
+
+
+def resolve_deploy_image(
+    environment_type: Optional[str] = None, override: Optional[str] = None
+) -> Optional[str]:
     """The tool set image that runs deployments into ``environment_type``.
 
-    ``HMD_APP_IMAGE_MAP`` (a JSON object keyed by environment type) wins over
+    A per-item ``override`` (the change set's ``deploy_image``) wins, then
+    ``HMD_APP_IMAGE_MAP`` (a JSON object keyed by environment type), then
     ``HMD_APP_IMAGE``. Validation, workflow creation and the recorded
     ``deployment_image`` all call this, so the tool set whose requirements are
     checked is the one that runs the deploy.
@@ -28,6 +57,8 @@ def resolve_deploy_image(environment_type: Optional[str] = None) -> Optional[str
         image_map = {}
     if isinstance(image_map, dict) and environment_type:
         image = image_map.get(environment_type, image)
+    if override:
+        return _validate_override(override, os.environ.get("HMD_APP_IMAGE"))
     return image
 
 

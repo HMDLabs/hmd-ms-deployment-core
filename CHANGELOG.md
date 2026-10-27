@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-27
+
+- feat: per-item toolchain image. `resolve_deploy_image(environment_type, override)` returns a change set item's own `deploy_image` ahead of `HMD_APP_IMAGE_MAP` and `HMD_APP_IMAGE`, and raises `InvalidDeployImage` unless it is a tagged `hmd-img-projectbuilder` image from the registry the environment already deploys from. `DeployRequirementEvaluator.evaluate` evaluates each tool set's requirements against only the items it deploys (an invalid `deploy_image` is a `deploy_image_invalid` error for that item), and `add_repo_instance(deploy_image=...)` records it as the deployment's `deployment_image`. Requires `hmd-lang-deployment~=0.1.104`.
+
 ## 2026-10-26
 
 - feat: NERD0019 Bundle unifies Stack: a bundle file's `local` block is stored on `bundle_version.local` (and is part of its content); `attach_bundle_to_environment` / `detach_bundle_from_environment` / `list_environment_bundles` record a bundle in an environment as `environment_has_bundle_version` plus one `repo_instance_member_of_bundle_version` edge per bound role, and `?instance=` answers which bundle put an instance there; `install_release` keeps the lock's `profiles`, `satisfies`, `source` and header, and `get_release_lock` exports a release as a `neuronsphere.lock`, unchanged for one installed from a lock. Requires `hmd-lang-deployment~=0.1.103`.

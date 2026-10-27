@@ -58,6 +58,34 @@ def test_deployment_image_stored_on_repo_instance_deployment(deployment_class_on
         assert rid.deployment_image == test_image
 
 
+def test_deploy_image_override_is_stored_instead_of_the_environment_default(
+    deployment_class_only,
+):
+    """A change set item's own deploy_image is the one recorded."""
+    client, rs = make_client(deployment_class_only)
+
+    default_image = "ghcr.io/hmdlabs/hmd-img-projectbuilder:0.5.402"
+    old_image = "ghcr.io/hmdlabs/hmd-img-projectbuilder:0.4.200"
+    with patch.dict(os.environ, {"HMD_APP_IMAGE": default_image}):
+        client.upsert(
+            Environment(type="dev", account_number="123456789", hmd_region="reg1")
+        )
+        class_info = ClassInformation(client)
+        env_info = EnvironmentInformation(
+            client.search_environment_hmd_lang_deployment({})[0], client
+        )
+
+        ri, rid = env_info.add_repo_instance(
+            "base-vpc",
+            "aaa",
+            {},
+            class_info.get_repo_class_version("hmd-vpc", "0.1.17"),
+            deploy_image=old_image,
+        )
+
+        assert rid.deployment_image == old_image
+
+
 def test_deployment_image_not_set_when_env_var_missing(deployment_class_only):
     """Test that deployment_image is not set if HMD_APP_IMAGE is not in environment."""
     client, rs = make_client(deployment_class_only)

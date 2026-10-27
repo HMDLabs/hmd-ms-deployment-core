@@ -420,6 +420,7 @@ class EnvironmentInformation:
         auto_deploy: str = "false",
         status=DEPLOY_NEXT,
         dry_run: bool = False,
+        deploy_image: str = None,
     ) -> Tuple[RepoInstance, RepoInstanceDeployment]:
         """Add a new RepoInstance, and/or a new RepoInstanceDeployment if the
         RepoInstance exists.
@@ -435,6 +436,9 @@ class EnvironmentInformation:
             instance is left exactly as it is (auto_deploy, dependency edges,
             other pending deployments); only the new RepoInstanceDeployment
             is written.
+        :param deploy_image: The change set item's own tool set image, recorded
+            as the deployment's ``deployment_image`` in place of the
+            environment default.
         :return:
         :rtype:
         """
@@ -494,6 +498,7 @@ class EnvironmentInformation:
             image_only,
             status,
             dry_run=dry_run,
+            deploy_image=deploy_image,
         )
 
     def _synch_dependencies(
@@ -583,6 +588,7 @@ class EnvironmentInformation:
         image_only: bool = False,
         status: str = DEPLOY_NEXT,
         dry_run: bool = False,
+        deploy_image: str = None,
     ) -> RepoInstanceDeployment:
         """Create a new RepoInstanceDeployment.
 
@@ -621,9 +627,10 @@ class EnvironmentInformation:
             "config_artifact_spec": config_spec,
         }
 
-        # Store the Docker image used for deployment: the one mapped to this
-        # environment, which is the one the workflow will run.
-        deployment_image = resolve_deploy_image(self.environment.type)
+        # Store the Docker image used for deployment: the item's own
+        # ``deploy_image`` or else the one mapped to this environment, which is
+        # the one the workflow will run.
+        deployment_image = resolve_deploy_image(self.environment.type, deploy_image)
         if deployment_image:
             deployment_data["deployment_image"] = deployment_image
 

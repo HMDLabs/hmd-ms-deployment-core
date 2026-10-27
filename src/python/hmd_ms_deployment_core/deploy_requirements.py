@@ -23,6 +23,7 @@ from hmd_lang_deployment.resource_definition import ResourceDefinition
 
 from hmd_ms_deployment_core.class_information import ClassInformation
 from hmd_ms_deployment_core.deploy_image import (  # noqa: F401 (re-exported)
+    InvalidDeployImage,
     parse_image_reference,
     resolve_deploy_image,
 )
@@ -80,7 +81,52 @@ class DeployRequirementEvaluator:
         errors: List[Dict] = []
         warnings: List[Dict] = []
         environment_type = env_info.environment.type if env_info else None
-        image = resolve_deploy_image(environment_type)
+        planned = {
+            change.get("repo_instance_name"): change
+            for change in changes
+            if change.get("repo_instance_name")
+        }
+
+        # A change may name its own tool set image (``deploy_image``); each
+        # tool set's requirements apply to the changes it deploys.
+        by_image: Dict[Optional[str], List[Dict]] = {}
+        for change in changes:
+            try:
+                image = resolve_deploy_image(
+                    environment_type, change.get("deploy_image")
+                )
+            except InvalidDeployImage as ex:
+                errors.append(
+                    {
+                        "type": "deploy_image_invalid",
+                        "instance": change.get("repo_instance_name", ""),
+                        "message": str(ex),
+                    }
+                )
+                continue
+            by_image.setdefault(image, []).append(change)
+        if not changes:
+            by_image[resolve_deploy_image(environment_type)] = []
+
+        for image, image_changes in by_image.items():
+            found = self._evaluate_image(
+                image, image_changes, planned, env_info, acknowledged
+            )
+            errors.extend(found["errors"])
+            warnings.extend(found["warnings"])
+        return {"errors": errors, "warnings": warnings}
+
+    def _evaluate_image(
+        self,
+        image: Optional[str],
+        changes: List[Dict],
+        planned: Dict,
+        env_info,
+        acknowledged: Iterable[str],
+    ) -> Dict[str, List[Dict]]:
+        """One tool set image's requirements against the changes it deploys."""
+        errors: List[Dict] = []
+        warnings: List[Dict] = []
         if not image:
             return {"errors": errors, "warnings": warnings}
 
@@ -109,11 +155,6 @@ class DeployRequirementEvaluator:
         if toolset.get("name"):
             imposed_by += f" (tool set {toolset['name']})"
         acknowledged = set(acknowledged or ())
-        planned = {
-            change.get("repo_instance_name"): change
-            for change in changes
-            if change.get("repo_instance_name")
-        }
 
         readable = []
         for requirement in requirements:

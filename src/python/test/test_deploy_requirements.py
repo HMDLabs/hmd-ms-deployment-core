@@ -328,6 +328,59 @@ def test_the_environment_image_map_selects_the_tool_set():
 
 
 # --------------------------------------------------------------------------- #
+# Per-item deploy_image
+# --------------------------------------------------------------------------- #
+
+
+def test_an_item_deployed_with_an_older_tool_set_is_not_held_to_the_new_one():
+    client = make_client()
+    env_info = _world(client)
+    change = dict(_thing(dependencies={"authorizer": "authz"}), deploy_image=OLD_IMAGE)
+
+    result = _evaluate(client, [change], env_info, image=NEW_IMAGE)
+
+    assert result == {"errors": [], "warnings": []}
+
+
+def test_an_item_deployed_with_a_newer_tool_set_is_held_to_its_requirements():
+    client = make_client()
+    env_info = _world(client)
+    change = dict(_thing(dependencies={"authorizer": "authz"}), deploy_image=NEW_IMAGE)
+
+    result = _evaluate(client, [change], env_info, image=OLD_IMAGE)
+
+    assert [e["instance"] for e in result["errors"]] == ["thing"]
+
+
+def test_only_the_items_on_the_new_tool_set_are_flagged():
+    client = make_client()
+    env_info = _world(client)
+    pinned = dict(
+        _thing("pinned", dependencies={"authorizer": "authz"}), deploy_image=OLD_IMAGE
+    )
+    current = _thing("current", dependencies={"authorizer": "authz"})
+
+    result = _evaluate(client, [pinned, current], env_info, image=NEW_IMAGE)
+
+    assert [e["instance"] for e in result["errors"]] == ["current"]
+
+
+def test_an_invalid_deploy_image_is_an_error_for_that_item_not_an_exception():
+    client = make_client()
+    env_info = _world(client)
+    change = dict(
+        _thing(dependencies={"authorizer": "authz"}),
+        deploy_image="docker.io/someone/hmd-img-projectbuilder:0.4.326",
+    )
+
+    result = _evaluate(client, [change], env_info)
+
+    assert [(e["type"], e["instance"]) for e in result["errors"]] == [
+        ("deploy_image_invalid", "thing")
+    ]
+
+
+# --------------------------------------------------------------------------- #
 # Severity and overrides
 # --------------------------------------------------------------------------- #
 
