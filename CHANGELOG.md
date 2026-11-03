@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-03
+
+- fix: `load_environment` keeps the instance the client already caches when it rehydrates the environment graph from the env cache (NERD0005), so a second load on the same client no longer leaves RepoInstances without their relationships. Release exports (`export_release_bom`, `cut_release`, `release_environment`) load twice and failed with `IndexError` in `serialize_repo_instance` for every environment whenever the cache was enabled.
+
 ## 2026-10-27
 
 - feat: per-item toolchain image. `resolve_deploy_image(environment_type, override)` returns a change set item's own `deploy_image` ahead of `HMD_APP_IMAGE_MAP` and `HMD_APP_IMAGE`, and raises `InvalidDeployImage` unless it is a tagged `hmd-img-projectbuilder` image from the registry the environment already deploys from. `DeployRequirementEvaluator.evaluate` evaluates each tool set's requirements against only the items it deploys (an invalid `deploy_image` is a `deploy_image_invalid` error for that item), and `add_repo_instance(deploy_image=...)` records it as the deployment's `deployment_image`. Requires `hmd-lang-deployment~=0.1.104`.

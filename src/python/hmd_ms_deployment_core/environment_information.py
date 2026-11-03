@@ -304,15 +304,18 @@ class EnvironmentInformation:
             # anything else falls through to the Postgres queries below.
             topology, status = cache.load_layers(env_type, base.loader)
             if topology is not None and status is not None:
-                for entity in topology + status:
-                    # Seed the client instance cache so ref_to/ref_from resolve
-                    # against these in-memory entities instead of hitting the db.
-                    base.cache_instance(entity)
+                # Seed the client instance cache so ref_to/ref_from resolve
+                # against these in-memory entities instead of hitting the db.
+                # cache_instance keeps an equal entity the client already holds
+                # (an earlier load on this client) and returns it; links attach
+                # to that object, so it is the one to keep here too.
+                entities = [base.cache_instance(e) for e in topology + status]
+                for entity in entities:
                     if isinstance(entity, Relationship):
                         self.cache_relationship(entity)
                     else:
                         self.cache_noun(entity)
-                for entity in topology + status:
+                for entity in entities:
                     if isinstance(entity, Relationship):
                         self.rel_support.ref_to(entity)
                         self.rel_support.ref_from(entity)
