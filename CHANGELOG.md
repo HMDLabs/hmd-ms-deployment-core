@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-09
+
+- fix: a dry run of an existing instance plans with its ChangeSet item's dependency bindings, recorded on its deployment's `plan` (`bindings`, and `binding_changes` naming the roles added and removed), while the stored edges stay unchanged; before, it planned with the stored edges, so a role the item added was missing in synth (hmd-ms-deployment NERD0027 SPEC0007)
+
 ## 2026-11-03
 
 - fix: `load_environment` keeps the instance the client already caches when it rehydrates the environment graph from the env cache (NERD0005), so a second load on the same client no longer leaves RepoInstances without their relationships. Release exports (`export_release_bom`, `cut_release`, `release_environment`) load twice and failed with `IndexError` in `serialize_repo_instance` for every environment whenever the cache was enabled.

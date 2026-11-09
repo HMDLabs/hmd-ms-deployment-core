@@ -119,6 +119,48 @@ class InstanceConfigResolver:
 
             config.update(default_config)
 
+        for role, dep_instance in self._bound_dependencies(
+            instance, instance_deployment
+        ):
+            role_cfg = self.get_instance_config(dep_instance, destroy, False)
+            # NERD0006: attach the dependency's produced Resource outputs (baked when
+            # already deployed, or a runtime pointer when deployed in this ChangeSet).
+            self._attach_dependency_resources(role_cfg, dep_instance, destroy)
+            if role not in config["dependencies"]:
+                config["dependencies"][role] = role_cfg
+            else:
+                if not isinstance(config["dependencies"][role], list):
+                    new_list = list()
+                    new_list.append(config["dependencies"][role])
+                    config["dependencies"][role] = new_list
+                config["dependencies"][role].append(role_cfg)
+        self._instance_config_cache[cache_key] = config
+        return config
+
+    def _bound_dependencies(self, instance: RepoInstance, instance_deployment):
+        """``[(role, RepoInstance)]`` the deployment is configured with.
+
+        A dry run of an existing instance leaves its stored edges alone and records
+        the ChangeSet item's bindings on its deployment instead (NERD0027 SPEC0007),
+        so it plans with the bindings the real apply would deploy with. Everything
+        else takes the stored ``RepoInstanceReqRepoInstance`` edges."""
+        plan = getattr(instance_deployment, "plan", None) or {}
+        if plan.get("dry_run") and isinstance(plan.get("bindings"), dict):
+            bound = []
+            for role, identifiers in plan["bindings"].items():
+                for identifier in identifiers:
+                    dep_instance = self.client.get_repo_instance_hmd_lang_deployment(
+                        identifier
+                    )
+                    if dep_instance is None:
+                        logger.warning(
+                            f"Dry run of {instance.name}: role {role} binds "
+                            f"{identifier}, which no longer exists"
+                        )
+                        continue
+                    bound.append((role, dep_instance))
+            return bound
+
         dependencies: List[RepoInstanceReqRepoInstance] = (
             instance.get_from_repo_instance_req_repo_instance_hmd_lang_deployment()
         )
@@ -128,22 +170,7 @@ class InstanceConfigResolver:
                 instance
             )
             self.rs.pull_relationship_nouns(dependencies)
-        for dep in dependencies:
-            dep_instance = self.rs.ref_to(dep)
-            role_cfg = self.get_instance_config(dep_instance, destroy, False)
-            # NERD0006: attach the dependency's produced Resource outputs (baked when
-            # already deployed, or a runtime pointer when deployed in this ChangeSet).
-            self._attach_dependency_resources(role_cfg, dep_instance, destroy)
-            if dep.role not in config["dependencies"]:
-                config["dependencies"][dep.role] = role_cfg
-            else:
-                if not isinstance(config["dependencies"][dep.role], list):
-                    new_list = list()
-                    new_list.append(config["dependencies"][dep.role])
-                    config["dependencies"][dep.role] = new_list
-                config["dependencies"][dep.role].append(role_cfg)
-        self._instance_config_cache[cache_key] = config
-        return config
+        return [(dep.role, self.rs.ref_to(dep)) for dep in dependencies]
 
     def _attach_dependency_resources(
         self, role_cfg: Dict, dep_instance: RepoInstance, destroy: bool

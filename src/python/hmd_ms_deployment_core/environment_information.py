@@ -59,6 +59,33 @@ def is_dry_run_deployment(rid: RepoInstanceDeployment) -> bool:
     return bool((getattr(rid, "plan", None) or {}).get("dry_run"))
 
 
+def dry_run_bindings(
+    dependencies: Dict, current_dependencies: Dict, rel_support
+) -> Dict:
+    """NERD0027 SPEC0007: ``plan`` keys recording a dry run's dependency bindings.
+
+    ``bindings`` maps each role to the identifiers of the instances the ChangeSet
+    item binds; ``binding_changes`` names the roles it adds and removes relative to
+    the stored edges, so the report says the plan used bindings not yet recorded."""
+    bindings = {
+        role: [instance.identifier for instance in instances]
+        for role, instances in dependencies.items()
+    }
+    stored = {
+        role: sorted(rel_support.ref_to(rel).identifier for rel in rels)
+        for role, rels in current_dependencies.items()
+        if rels
+    }
+    added = sorted(
+        role for role, ids in bindings.items() if sorted(ids) != stored.get(role)
+    )
+    removed = sorted(role for role in stored if role not in bindings)
+    out = {"bindings": bindings}
+    if added or removed:
+        out["binding_changes"] = {"added": added, "removed": removed}
+    return out
+
+
 def mark_rid_status(client, rid: RepoInstanceDeployment, status: str, now=None):
     """Apply a status transition to a RepoInstanceDeployment with timestamp bookkeeping.
 
@@ -761,6 +788,15 @@ class EnvironmentInformation:
         # ordered by. A brand-new instance has no topology to protect, and needs
         # its edges for the dry run's own DAG.
         preserve_topology = dry_run and bool(existing_rids)
+        if preserve_topology:
+            # NERD0027 SPEC0007: the edges stay as they are, so record the item's
+            # bindings on this run's deployment; get_instance_config plans with them.
+            deployment_data["plan"] = {
+                **(deployment_data.get("plan") or {}),
+                **dry_run_bindings(
+                    dependencies, current_dependencies, self.rel_support
+                ),
+            }
 
         # This new one will be handled next, so skip any that are marked as DEPLOY_NEXT...
         # ...unless it is only a dry run, which must never cancel a real one.
