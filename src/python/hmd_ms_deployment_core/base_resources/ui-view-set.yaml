@@ -1,0 +1,92 @@
+# Base ResourceDefinition: the UI views a service contributes to the NeuronSphere
+# shell. A subtype of application.neuronsphere.io/application.
+#
+# Services declare their views in their own meta-data/views.yaml
+# (hmd-base-service NERD003). ServiceCdkTfStack publishes one per deployed
+# instance, tagged `ui.neuronsphere.io/kind=view-set`, with the views the
+# instance's `service_config.ui_views` leaves enabled. The GUI's service browser
+# (hmd-app-neuronsphere-core NERD007) discovers them per environment
+# (hmd-ms-deployment NERD0003). The environment is never part of the output: it
+# is wherever the producing repo instance is deployed.
+resource_namespace: ui.neuronsphere.io
+resource_definition_name: view-set
+version: 0.1.0
+description: >-
+  The HTMX partial views a deployed service contributes to the NeuronSphere GUI,
+  with the group-to-permission map that decides who may see each one.
+parent:
+  resource_namespace: application.neuronsphere.io
+  resource_definition_name: application
+  version: 0.1.0
+output_schema:
+  type: object
+  required:
+    - service
+    - instance
+    - base_url
+    - views
+    - group_permissions
+  properties:
+    service:
+      type: string
+      description: The producing repo class, e.g. hmd-ms-identity.
+    instance:
+      type: string
+      description: The producing repo instance's name.
+    version:
+      type: string
+      description: The deployed service's version.
+    base_url:
+      type: string
+      description: >-
+        Where the GUI's proxy reaches the service; each view's path is relative to
+        it. Derived as for mcp-server: the ApiGateway custom domain in the cloud,
+        http://hmd_proxy/<instance> locally.
+    auth_mode:
+      type: string
+      enum: [passthrough]
+      default: passthrough
+      description: >-
+        passthrough -- the GUI forwards the caller's own SSO bearer token, and the
+        service authorizes the view itself. Declared so another mode can be added
+        without a schema break.
+    views:
+      type: array
+      description: The enabled views, as /views/manifest returns them.
+      items:
+        type: object
+        required: [id, title, path, required_permissions]
+        properties:
+          id:
+            type: string
+            pattern: "^[a-z0-9][a-z0-9-]{0,62}$"
+            description: Stable, unique within the service.
+          title:
+            type: string
+          description:
+            type: string
+          path:
+            type: string
+            description: Route under base_url that returns the HTML fragment.
+          required_permissions:
+            type: array
+            items: {type: string}
+            description: Every one must be granted for the view to be listed or served.
+          group:
+            type: string
+            description: Menu grouping, e.g. "Identity > People".
+          order:
+            type: integer
+          icon:
+            type: string
+            description: A name from the curated icon set shared with the GUI.
+    group_permissions:
+      type: object
+      description: >-
+        Real identity-provider group name -> the permissions it grants, resolved
+        from the service's declared roles at deploy time (hmd-base-service NERD003
+        SPEC010). The GUI filters its menu with this map and the same resolver the
+        service uses.
+      additionalProperties:
+        type: array
+        items: {type: string}

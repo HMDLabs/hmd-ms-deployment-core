@@ -23,7 +23,7 @@ from hmd_ms_deployment_core.resource_information import (
 from hmd_schema_loader import DefaultLoader
 
 
-EXPECTED_BASE_COUNT = 37
+EXPECTED_BASE_COUNT = 39
 
 
 def make_client():
@@ -124,6 +124,20 @@ def test_seed_creates_inheritance_edges():
     )
     ancestry = [rd.resource_definition_name for rd in ri.get_ancestry(mcp_server)]
     assert ancestry == ["application", "mcp-server"]
+
+    # A service's UI views are published by the service itself, so a view-set is
+    # an application too; the GUI's service browser discovers them (NERD0003).
+    view_set = ri.find_resource_definition("ui.neuronsphere.io", "view-set", "0.1.0")
+    ancestry = [rd.resource_definition_name for rd in ri.get_ancestry(view_set)]
+    assert ancestry == ["application", "view-set"]
+
+    # An access group is a group in an identity provider, not something that
+    # serves requests: it is a root type (hmd-ms-identity NERD002).
+    access_group = ri.find_resource_definition(
+        "auth.neuronsphere.io", "access-group", "0.1.0"
+    )
+    ancestry = [rd.resource_definition_name for rd in ri.get_ancestry(access_group)]
+    assert ancestry == ["access-group"]
 
     # Both a cloud vpc and the local docker-network inherit from the generic
     # network supertype, so either can satisfy a generic `network` requirement.
@@ -524,3 +538,39 @@ def test_connection_base_type_inherits_credential():
         "SecretsManager",
         "ParameterStore",
     ]
+
+
+def _base_doc(namespace, name):
+    (doc,) = [
+        d
+        for d in load_base_resource_documents()
+        if (d["resource_namespace"], d["resource_definition_name"]) == (namespace, name)
+    ]
+    return doc
+
+
+def test_view_set_output_carries_what_the_host_needs():
+    schema = _base_doc("ui.neuronsphere.io", "view-set")["output_schema"]
+    assert set(schema["required"]) == {
+        "service",
+        "instance",
+        "base_url",
+        "views",
+        "group_permissions",
+    }
+    view = schema["properties"]["views"]["items"]
+    assert set(view["required"]) == {"id", "title", "path", "required_permissions"}
+    assert "template" not in view["properties"]
+
+
+def test_access_group_output_identifies_the_provider_group():
+    schema = _base_doc("auth.neuronsphere.io", "access-group")["output_schema"]
+    assert set(schema["required"]) == {
+        "provider",
+        "group_name",
+        "group_id",
+        "kind",
+        "app",
+        "role",
+    }
+    assert schema["properties"]["kind"]["enum"] == ["app-role", "trigger"]

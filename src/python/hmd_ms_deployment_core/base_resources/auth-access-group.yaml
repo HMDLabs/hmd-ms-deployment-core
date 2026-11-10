@@ -1,0 +1,66 @@
+# Base ResourceDefinition: a group in the deployment's identity provider that
+# grants access to a deployed app. A root type: a group does not serve requests.
+#
+# Published once per group, tagged `auth.neuronsphere.io/kind=access-group`, by:
+#   - the Okta/Auth factories in hmd-lib-cdktf-factories, for each app's role
+#     groups (kind app-role);
+#   - hmd-inf-okta-access-groups, for an environment's trigger groups (kind
+#     trigger, NEP023).
+# hmd-ms-identity (NERD002) reads them per environment as its access catalog,
+# and acts only on groups the catalog lists. Under LocalAuth no provider group
+# exists; group_id is then the computed group name.
+resource_namespace: auth.neuronsphere.io
+resource_definition_name: access-group
+version: 0.1.0
+description: >-
+  An identity-provider group that grants access to a deployed app or service:
+  either an app's own role group, or a trigger group whose rule assigns app role
+  groups.
+output_schema:
+  type: object
+  required:
+    - provider
+    - group_name
+    - group_id
+    - kind
+    - app
+    - role
+  properties:
+    provider:
+      type: string
+      enum: [okta, auth0, local]
+    group_name:
+      type: string
+      description: The real group name, as it appears in tokens' groups claim.
+    group_id:
+      type: string
+      description: The provider's group id. Opaque; never parsed.
+    kind:
+      type: string
+      enum: [app-role, trigger]
+      description: >-
+        app-role -- created by the app and mapped to its in-app roles; trigger --
+        a people-facing group whose rule assigns the app role groups in grants.
+    app:
+      type: object
+      required: [repo_class, instance]
+      description: >-
+        The app the group belongs to; for a trigger group, the
+        hmd-inf-okta-access-groups instance.
+      properties:
+        repo_class:
+          type: string
+        instance:
+          type: string
+    role:
+      type: string
+      description: The role within the app, e.g. gamma, viewer, admin.
+    title:
+      type: string
+      description: Shown to administrators.
+    description:
+      type: string
+    grants:
+      type: array
+      items: {type: string}
+      description: Trigger groups only -- the group_name of each app role group the rule assigns.
