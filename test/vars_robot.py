@@ -33,10 +33,16 @@ _RUN_ID = os.environ.get("ROBOT_RUN_ID") or time.strftime("%m%d%H%M%S")
 ENVIRONMENT_TYPE = f"robot-test-{_RUN_ID}"
 DEPLOYMENT_SET_NAME = f"{ENVIRONMENT_TYPE}-deploymentset"
 
-gozer_instance_name = "ms-gozer"
+# Against a cloud test control plane (hmd-ms-deployment NERD0029) the suite
+# clears that plane's own database: ROBOT_RDS_SERVICES=dbaccount-deployment-test.
+# Gozer can only clear databases wired to its dbaccounts role, so admin's
+# deployment database is out of its reach from dev.
+gozer_instance_name = os.environ.get("ROBOT_GOZER_INSTANCE", "ms-gozer")
 
 pre_test_db_clear = {
-    "rds_services": ["dbaccount-deployment"]
+    "rds_services": os.environ.get(
+        "ROBOT_RDS_SERVICES", "dbaccount-deployment"
+    ).split(",")
 }
 
 add_rc_1 = {

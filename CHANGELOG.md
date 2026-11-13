@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-13
+
+- test: `robot_test.robot` takes gozer and the databases it clears from `ROBOT_GOZER_INSTANCE` / `ROBOT_RDS_SERVICES` (default `ms-gozer` / `dbaccount-deployment`), so it can run against a cloud test control plane (hmd-ms-deployment NERD0029)
+
 ## 2026-11-11
 
 - fix: make the datadog-lambda dependency optional; services route telemetry through the OTel collector instead of Datadog
